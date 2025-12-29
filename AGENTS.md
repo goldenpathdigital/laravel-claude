@@ -1,7 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2025-12-28  
-**Status:** Greenfield (pre-implementation)
+**Status:** Greenfield (pre-implementation)  
+**Repo:** https://github.com/goldenpathdigital/laravel-claude
 
 ## OVERVIEW
 
@@ -102,7 +103,7 @@ Claude::conversation()
 
 ```bash
 # Initialize package (when ready)
-composer init --name="acme/laravel-claude"
+composer init --name="goldenpathdigital/laravel-claude"
 
 # Install official SDK
 composer require anthropic-ai/sdk
