@@ -1,5 +1,6 @@
 # Laravel Claude
 
+[![CI](https://github.com/goldenpathdigital/laravel-claude/actions/workflows/ci.yml/badge.svg)](https://github.com/goldenpathdigital/laravel-claude/actions/workflows/ci.yml)
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/goldenpathdigital/laravel-claude.svg?style=flat-square)](https://packagist.org/packages/goldenpathdigital/laravel-claude)
 [![Total Downloads](https://img.shields.io/packagist/dt/goldenpathdigital/laravel-claude.svg?style=flat-square)](https://packagist.org/packages/goldenpathdigital/laravel-claude)
 [![License](https://img.shields.io/packagist/l/goldenpathdigital/laravel-claude.svg?style=flat-square)](https://packagist.org/packages/goldenpathdigital/laravel-claude)
