@@ -23,7 +23,7 @@ A Laravel wrapper for the official [Anthropic PHP SDK](https://github.com/anthro
 
 ## Requirements
 
-- PHP 8.1+
+- PHP 8.2+
 - Laravel 10, 11, or 12
 
 ## Installation
