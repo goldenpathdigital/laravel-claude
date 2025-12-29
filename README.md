@@ -14,6 +14,9 @@ A Laravel wrapper for the official [Anthropic PHP SDK](https://github.com/anthro
 - **Tool System** — Define tools with fluent builder and automatic execution loop
 - **MCP Connector** — First Laravel package with MCP client support
 - **Streaming** — Real-time streaming with Laravel events
+- **Extended Thinking** — Access Claude's reasoning process with budget tokens
+- **Prompt Caching** — Reduce costs with cached system prompts
+- **Structured Outputs** — JSON schema validation for responses
 - **Testing Utilities** — `Claude::fake()` with assertion helpers
 
 ## Requirements
@@ -189,6 +192,83 @@ $response = Claude::conversation()
     ->send();
 ```
 
+### Extended Thinking
+
+Enable Claude's reasoning process for complex problems:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+$response = Claude::conversation()
+    ->model('claude-sonnet-4-5-20250929')
+    ->extendedThinking(budgetTokens: 10000)
+    ->user('Analyze the pros and cons of microservices vs monolith architecture.')
+    ->send();
+
+// Access thinking blocks in response
+foreach ($response->content as $block) {
+    if ($block->type === 'thinking') {
+        logger()->info('Claude reasoning:', ['thinking' => $block->thinking]);
+    }
+    if ($block->type === 'text') {
+        echo $block->text;
+    }
+}
+```
+
+### Prompt Caching
+
+Reduce costs by caching large system prompts:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+use GoldenPathDigital\Claude\ValueObjects\CachedContent;
+
+// Cache a long system prompt
+$systemPrompt = CachedContent::make($longDocumentation)
+    ->cache('ephemeral');
+
+$response = Claude::conversation()
+    ->system($systemPrompt)
+    ->user('Summarize the key points.')
+    ->send();
+
+// Check cache usage in response
+// $response->usage->cache_creation_input_tokens
+// $response->usage->cache_read_input_tokens
+```
+
+### Structured Outputs
+
+Get responses validated against a JSON schema:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
+
+$schema = [
+    'type' => 'object',
+    'properties' => [
+        'parties' => ['type' => 'array', 'items' => ['type' => 'string']],
+        'effective_date' => ['type' => 'string'],
+        'term_length' => ['type' => 'string'],
+        'key_obligations' => ['type' => 'array', 'items' => ['type' => 'string']],
+    ],
+    'required' => ['parties', 'effective_date'],
+];
+
+$response = Claude::conversation()
+    ->user('Extract the key terms from this contract: ...')
+    ->schema($schema, 'contract_terms')
+    ->send();
+
+// Extract structured data from the tool_use response
+$data = ConversationBuilder::extractStructuredOutput($response);
+
+echo $data['parties'][0]; // "Acme Corp"
+echo $data['effective_date']; // "2025-01-01"
+```
+
 ## Testing
 
 Use `Claude::fake()` to mock responses in your tests:
@@ -272,10 +352,7 @@ return [
 
 ## Coming Soon
 
-- **Extended Thinking** — Access Claude's reasoning process with budget tokens
-- **Prompt Caching** — Reduce costs with cached system prompts
-- **Structured Outputs** — JSON schema validation for responses
-- **Queue Integration** — Process conversations in background jobs
+- **Queue Integration** — Process conversations in background jobs with retry handling
 
 ## Testing
 
