@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GoldenPathDigital\Claude;
 
 use Anthropic\Client;
+use Anthropic\RequestOptions;
 use Anthropic\Services\Beta\FilesService;
 use Anthropic\Services\Beta\Messages\BatchesService;
 use Anthropic\Services\MessagesService;
@@ -13,6 +14,7 @@ use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
 use GoldenPathDigital\Claude\Testing\FakeResponse;
 use GoldenPathDigital\Claude\Testing\PendingClaudeFake;
+use ReflectionClass;
 
 class ClaudeManager implements ClaudeClientInterface
 {
@@ -20,6 +22,11 @@ class ClaudeManager implements ClaudeClientInterface
 
     protected array $config;
 
+    /**
+     * Static fake instance for tests. Not safe for long-running workers
+     * (e.g., Octane, Horizon) because the static state persists between jobs.
+     * Always call clearFake() when a test completes.
+     */
     protected static ?PendingClaudeFake $fake = null;
 
     public function __construct(array $config)
@@ -30,9 +37,91 @@ class ClaudeManager implements ClaudeClientInterface
 
     protected function createClient(): Client
     {
-        return new Client(
+        $client = new Client(
             apiKey: $this->config['api_key'] ?? null,
         );
+
+        $this->applyConfigToClient($client);
+
+        return $client;
+    }
+
+    protected function applyConfigToClient(Client $client): void
+    {
+        $options = $this->cloneClientOptions($client);
+
+        $timeout = $this->config['timeout'] ?? null;
+        if (is_numeric($timeout)) {
+            $options->timeout = (float) $timeout;
+        }
+
+        $maxRetries = $this->config['max_retries'] ?? null;
+        if (is_numeric($maxRetries)) {
+            $options->maxRetries = (int) $maxRetries;
+        }
+
+        $betaHeaders = $this->betaHeaders();
+        if (! empty($betaHeaders)) {
+            $options->extraHeaders = array_merge($options->extraHeaders ?? [], $betaHeaders);
+        }
+
+        $this->setClientOptions($client, $options);
+    }
+
+    protected function betaHeaders(): array
+    {
+        $features = $this->config['beta_features'] ?? [];
+
+        $map = [
+            'mcp_connector' => 'mcp-client-2025-11-20',
+            'extended_thinking' => 'extended-thinking-2024-12-17',
+            'prompt_caching' => 'prompt-caching-2024-07-31',
+            'structured_outputs' => 'structured-outputs-2024-12-17',
+        ];
+
+        $enabled = [];
+        foreach ($features as $feature => $flag) {
+            if ($flag) {
+                $enabled[] = $map[$feature] ?? $feature;
+            }
+        }
+
+        if (empty($enabled)) {
+            return [];
+        }
+
+        return ['anthropic-beta' => implode(',', $enabled)];
+    }
+
+    protected function cloneClientOptions(Client $client): RequestOptions
+    {
+        $property = $this->clientOptionsProperty($client);
+
+        /** @var RequestOptions $options */
+        $options = $property->getValue($client);
+
+        return clone $options;
+    }
+
+    protected function setClientOptions(Client $client, RequestOptions $options): void
+    {
+        $property = $this->clientOptionsProperty($client);
+        $property->setValue($client, $options);
+    }
+
+    protected function clientOptionsProperty(Client $client): \ReflectionProperty
+    {
+        $class = new ReflectionClass($client);
+        $base = $class->getParentClass();
+
+        if ($base === false) {
+            throw new \RuntimeException('Unable to access client options');
+        }
+
+        $property = $base->getProperty('options');
+        $property->setAccessible(true);
+
+        return $property;
     }
 
     public function client(): Client

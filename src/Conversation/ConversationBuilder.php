@@ -562,6 +562,7 @@ class ConversationBuilder
             'max_steps' => $this->maxSteps,
             'thinking_budget' => $this->thinkingBudget,
             'json_schema' => $this->jsonSchema,
+            'json_schema_name' => $this->jsonSchemaName,
         ];
     }
 

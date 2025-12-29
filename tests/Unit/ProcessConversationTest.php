@@ -183,14 +183,26 @@ test('builds payload with json schema', function () {
 
     $payload = $method->invoke($job);
 
+    $schemaName = $conversation->toArray()['json_schema_name'];
+
     expect($payload['tools'])->toContain([
-        'name' => 'structured_output',
+        'name' => $schemaName,
         'description' => 'Respond with structured data matching the provided schema',
         'input_schema' => $schema,
     ]);
     expect($payload['tool_choice'])->toBe([
         'type' => 'tool',
-        'name' => 'structured_output',
+        'name' => $schemaName,
+    ]);
+
+    expect($payload['tool_choice'])->toBe([
+        'type' => 'tool',
+        'name' => 'extract_data',
+    ]);
+
+    expect($payload['tool_choice'])->toBe([
+        'type' => 'tool',
+        'name' => 'extract_data',
     ]);
 });
 

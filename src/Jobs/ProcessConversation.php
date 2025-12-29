@@ -14,6 +14,17 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Throwable;
 
+/**
+ * Dispatchable job that sends a serialized conversation payload in the background.
+ * Local tool loops (where handlers run in the same process) are not supported in this context.
+ */
+/**
+ * Serializes a ConversationBuilder for queued execution.
+ *
+ * This job only makes a single Messages API call, so it does not
+ * replicate ConversationBuilder::send()'s tool loop. Any looped
+ * behavior must be resolved before dispatching the job.
+ */
 class ProcessConversation implements ShouldQueue
 {
     use Dispatchable;
@@ -106,7 +117,7 @@ class ProcessConversation implements ShouldQueue
         $tools = $this->config['tools'] ?? [];
 
         if ($this->config['json_schema'] !== null) {
-            $schemaName = 'structured_output';
+            $schemaName = $this->config['json_schema_name'] ?? 'structured_output';
             $tools[] = [
                 'name' => $schemaName,
                 'description' => 'Respond with structured data matching the provided schema',
