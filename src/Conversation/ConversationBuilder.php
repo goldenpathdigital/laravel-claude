@@ -9,10 +9,13 @@ use Anthropic\Messages\RawContentBlockDeltaEvent;
 use Anthropic\Messages\RawMessageDeltaEvent;
 use Anthropic\Messages\RawMessageStartEvent;
 use Anthropic\Messages\TextBlock;
+use Anthropic\Messages\ToolUseBlock;
 use Closure;
 use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Events\StreamChunk;
 use GoldenPathDigital\Claude\Events\StreamComplete;
+use GoldenPathDigital\Claude\MCP\McpServer;
+use GoldenPathDigital\Claude\Tools\Tool;
 
 class ConversationBuilder
 {
@@ -27,6 +30,14 @@ class ConversationBuilder
     protected int $maxTokens = 1024;
 
     protected ?float $temperature = null;
+
+    /** @var array<Tool> */
+    protected array $tools = [];
+
+    /** @var array<McpServer> */
+    protected array $mcpServers = [];
+
+    protected int $maxSteps = 1;
 
     public function __construct(ClaudeClientInterface $client)
     {
@@ -82,6 +93,40 @@ class ConversationBuilder
         return $this;
     }
 
+    /** @param array<Tool> $tools */
+    public function tools(array $tools): self
+    {
+        $this->tools = $tools;
+
+        return $this;
+    }
+
+    /** @param array<McpServer|string> $servers */
+    public function mcp(array $servers): self
+    {
+        $this->mcpServers = array_map(function ($server) {
+            if ($server instanceof McpServer) {
+                return $server;
+            }
+
+            $configuredServers = $this->client->config('mcp_servers', []);
+            if (isset($configuredServers[$server])) {
+                return McpServer::fromConfig($server, $configuredServers[$server]);
+            }
+
+            throw new \InvalidArgumentException("MCP server '{$server}' not found in config");
+        }, $servers);
+
+        return $this;
+    }
+
+    public function maxSteps(int $steps): self
+    {
+        $this->maxSteps = $steps;
+
+        return $this;
+    }
+
     protected function buildPayload(): array
     {
         $payload = [
@@ -98,18 +143,128 @@ class ConversationBuilder
             $payload['temperature'] = $this->temperature;
         }
 
+        if (! empty($this->tools)) {
+            $payload['tools'] = array_map(fn (Tool $tool) => $tool->toArray(), $this->tools);
+        }
+
+        if (! empty($this->mcpServers)) {
+            $payload['mcp_servers'] = array_map(fn (McpServer $server) => $server->toArray(), $this->mcpServers);
+        }
+
         return $payload;
     }
 
     public function send(): Message
     {
         $payload = $this->buildPayload();
+        $step = 0;
 
-        $response = $this->client->messages()->create($payload);
+        while ($step < $this->maxSteps) {
+            $response = $this->client->messages()->create($payload);
+            $step++;
 
-        $this->appendAssistantResponse($response);
+            if ($response->stop_reason !== 'tool_use') {
+                $this->appendAssistantResponse($response);
+
+                return $response;
+            }
+
+            $toolResults = $this->executeTools($response);
+
+            if (empty($toolResults)) {
+                $this->appendAssistantResponse($response);
+
+                return $response;
+            }
+
+            $this->appendToolInteraction($response, $toolResults);
+            $payload['messages'] = $this->messages;
+        }
 
         return $response;
+    }
+
+    protected function executeTools(Message $response): array
+    {
+        $results = [];
+
+        foreach ($response->content as $block) {
+            if (! $block instanceof ToolUseBlock) {
+                continue;
+            }
+
+            $tool = $this->findTool($block->name);
+
+            if ($tool === null || ! $tool->hasHandler()) {
+                $results[] = [
+                    'type' => 'tool_result',
+                    'tool_use_id' => $block->id,
+                    'content' => "Tool '{$block->name}' not found or has no handler",
+                    'is_error' => true,
+                ];
+
+                continue;
+            }
+
+            try {
+                $result = $tool->execute($block->input);
+                $results[] = [
+                    'type' => 'tool_result',
+                    'tool_use_id' => $block->id,
+                    'content' => is_string($result) ? $result : json_encode($result),
+                ];
+            } catch (\Throwable $e) {
+                $results[] = [
+                    'type' => 'tool_result',
+                    'tool_use_id' => $block->id,
+                    'content' => "Error: {$e->getMessage()}",
+                    'is_error' => true,
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    protected function findTool(string $name): ?Tool
+    {
+        foreach ($this->tools as $tool) {
+            if ($tool->getName() === $name) {
+                return $tool;
+            }
+        }
+
+        return null;
+    }
+
+    protected function appendToolInteraction(Message $response, array $toolResults): void
+    {
+        $assistantContent = [];
+        foreach ($response->content as $block) {
+            if ($block instanceof TextBlock) {
+                $assistantContent[] = [
+                    'type' => 'text',
+                    'text' => $block->text,
+                ];
+            } elseif ($block instanceof ToolUseBlock) {
+                $assistantContent[] = [
+                    'type' => 'tool_use',
+                    'id' => $block->id,
+                    'name' => $block->name,
+                    'input' => $block->input,
+                ];
+            }
+        }
+
+        $this->messages[] = [
+            'role' => 'assistant',
+            'content' => $assistantContent,
+        ];
+
+        $this->messages[] = [
+            'role' => 'user',
+            'content' => $toolResults,
+        ];
     }
 
     /** @param  Closure(StreamChunk): void  $callback */
@@ -197,6 +352,9 @@ class ConversationBuilder
             'messages' => $this->messages,
             'max_tokens' => $this->maxTokens,
             'temperature' => $this->temperature,
+            'tools' => array_map(fn (Tool $t) => $t->toArray(), $this->tools),
+            'mcp_servers' => array_map(fn (McpServer $s) => $s->toArray(), $this->mcpServers),
+            'max_steps' => $this->maxSteps,
         ];
     }
 }
