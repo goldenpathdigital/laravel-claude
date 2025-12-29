@@ -14,6 +14,14 @@ class PendingClaudeFake implements ClaudeClientInterface
 
     protected array $config;
 
+    protected array $modelsResponses = [];
+
+    protected array $batchesResponses = [];
+
+    protected array $filesResponses = [];
+
+    protected ?object $tokenCountResponse = null;
+
     public function __construct(array $responses = [], array $config = [])
     {
         $this->config = $config;
@@ -25,6 +33,58 @@ class PendingClaudeFake implements ClaudeClientInterface
     public function messages(): FakeMessagesService
     {
         return $this->fakeMessages;
+    }
+
+    public function models(): FakeModelsService
+    {
+        return new FakeModelsService($this->modelsResponses);
+    }
+
+    public function batches(): FakeBatchesService
+    {
+        return new FakeBatchesService($this->batchesResponses);
+    }
+
+    public function files(): FakeFilesService
+    {
+        return new FakeFilesService($this->filesResponses);
+    }
+
+    public function countTokens(array $params): object
+    {
+        if ($this->tokenCountResponse !== null) {
+            return $this->tokenCountResponse;
+        }
+
+        return (object) ['input_tokens' => 10];
+    }
+
+    public function fakeModels(array $responses): self
+    {
+        $this->modelsResponses = $responses;
+
+        return $this;
+    }
+
+    public function fakeBatches(array $responses): self
+    {
+        $this->batchesResponses = $responses;
+
+        return $this;
+    }
+
+    public function fakeFiles(array $responses): self
+    {
+        $this->filesResponses = $responses;
+
+        return $this;
+    }
+
+    public function fakeTokenCount(int $tokens): self
+    {
+        $this->tokenCountResponse = (object) ['input_tokens' => $tokens];
+
+        return $this;
     }
 
     public function conversation(): ConversationBuilder

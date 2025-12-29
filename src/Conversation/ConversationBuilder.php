@@ -46,6 +46,16 @@ class ConversationBuilder
 
     protected ?string $jsonSchemaName = null;
 
+    protected array $stopSequences = [];
+
+    protected ?int $topK = null;
+
+    protected ?float $topP = null;
+
+    protected ?array $metadata = null;
+
+    protected ?string $serviceTier = null;
+
     public function __construct(ClaudeClientInterface $client)
     {
         $this->client = $client;
@@ -146,6 +156,34 @@ class ConversationBuilder
         return $this;
     }
 
+    public function pdf(string $data, ?string $text = null): self
+    {
+        $content = [
+            [
+                'type' => 'document',
+                'source' => [
+                    'type' => 'base64',
+                    'media_type' => 'application/pdf',
+                    'data' => $data,
+                ],
+            ],
+        ];
+
+        if ($text !== null) {
+            $content[] = [
+                'type' => 'text',
+                'text' => $text,
+            ];
+        }
+
+        $this->messages[] = [
+            'role' => 'user',
+            'content' => $content,
+        ];
+
+        return $this;
+    }
+
     public function assistant(string $content): self
     {
         $this->messages[] = [
@@ -166,6 +204,41 @@ class ConversationBuilder
     public function temperature(float $temperature): self
     {
         $this->temperature = $temperature;
+
+        return $this;
+    }
+
+    public function stopSequences(array $sequences): self
+    {
+        $this->stopSequences = $sequences;
+
+        return $this;
+    }
+
+    public function topK(int $k): self
+    {
+        $this->topK = $k;
+
+        return $this;
+    }
+
+    public function topP(float $p): self
+    {
+        $this->topP = $p;
+
+        return $this;
+    }
+
+    public function metadata(array $metadata): self
+    {
+        $this->metadata = $metadata;
+
+        return $this;
+    }
+
+    public function serviceTier(string $tier): self
+    {
+        $this->serviceTier = $tier;
 
         return $this;
     }
@@ -222,6 +295,26 @@ class ConversationBuilder
 
         if ($this->temperature !== null) {
             $payload['temperature'] = $this->temperature;
+        }
+
+        if (! empty($this->stopSequences)) {
+            $payload['stop_sequences'] = $this->stopSequences;
+        }
+
+        if ($this->topK !== null) {
+            $payload['top_k'] = $this->topK;
+        }
+
+        if ($this->topP !== null) {
+            $payload['top_p'] = $this->topP;
+        }
+
+        if ($this->metadata !== null) {
+            $payload['metadata'] = $this->metadata;
+        }
+
+        if ($this->serviceTier !== null) {
+            $payload['service_tier'] = $this->serviceTier;
         }
 
         if ($this->thinkingBudget !== null) {
@@ -459,6 +552,11 @@ class ConversationBuilder
             'messages' => $this->messages,
             'max_tokens' => $this->maxTokens,
             'temperature' => $this->temperature,
+            'stop_sequences' => $this->stopSequences,
+            'top_k' => $this->topK,
+            'top_p' => $this->topP,
+            'metadata' => $this->metadata,
+            'service_tier' => $this->serviceTier,
             'tools' => array_map(fn (Tool $t) => $t->toArray(), $this->tools),
             'mcp_servers' => array_map(fn (McpServer $s) => $s->toArray(), $this->mcpServers),
             'max_steps' => $this->maxSteps,
