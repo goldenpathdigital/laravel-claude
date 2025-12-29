@@ -224,6 +224,41 @@ $response = Claude::conversation()
     ->send();
 ```
 
+### PDF Documents
+
+Analyze PDF documents:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+$pdfData = base64_encode(file_get_contents('contract.pdf'));
+
+$response = Claude::conversation()
+    ->pdf($pdfData, 'Extract the key terms from this contract')
+    ->send();
+```
+
+### Advanced Parameters
+
+Fine-tune model behavior with additional parameters:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+$response = Claude::conversation()
+    ->model('claude-sonnet-4-5-20250929')
+    ->system('You are a helpful assistant.')
+    ->user('Write a haiku about coding.')
+    ->maxTokens(1024)
+    ->temperature(0.7)
+    ->topK(40)                          // Limit token selection pool
+    ->topP(0.9)                         // Nucleus sampling threshold
+    ->stopSequences(['END', '---'])     // Custom stop sequences
+    ->metadata(['user_id' => 'user_123']) // Usage tracking
+    ->serviceTier('auto')               // 'auto' or 'standard_only'
+    ->send();
+```
+
 ### Streaming
 
 Stream responses in real-time with callback support:

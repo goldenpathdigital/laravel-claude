@@ -76,6 +76,26 @@ class ProcessConversation implements ShouldQueue
             $payload['temperature'] = $this->config['temperature'];
         }
 
+        if (! empty($this->config['stop_sequences'])) {
+            $payload['stop_sequences'] = $this->config['stop_sequences'];
+        }
+
+        if ($this->config['top_k'] !== null) {
+            $payload['top_k'] = $this->config['top_k'];
+        }
+
+        if ($this->config['top_p'] !== null) {
+            $payload['top_p'] = $this->config['top_p'];
+        }
+
+        if ($this->config['metadata'] !== null) {
+            $payload['metadata'] = $this->config['metadata'];
+        }
+
+        if ($this->config['service_tier'] !== null) {
+            $payload['service_tier'] = $this->config['service_tier'];
+        }
+
         if ($this->config['thinking_budget'] !== null) {
             $payload['thinking'] = [
                 'type' => 'enabled',

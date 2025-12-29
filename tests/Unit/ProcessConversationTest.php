@@ -216,6 +216,91 @@ test('builds payload with mcp servers', function () {
     expect($payload['mcp_servers'][0]['url'])->toBe('https://mcp.example.com/api');
 });
 
+test('builds payload with stop sequences', function () {
+    $conversation = new ConversationBuilder($this->mockClient);
+    $conversation
+        ->user('Write until you see END')
+        ->stopSequences(['END', '---']);
+
+    $job = new ProcessConversation($conversation, TestCallback::class);
+
+    $reflection = new ReflectionClass($job);
+    $method = $reflection->getMethod('buildPayload');
+    $method->setAccessible(true);
+
+    $payload = $method->invoke($job);
+
+    expect($payload['stop_sequences'])->toBe(['END', '---']);
+});
+
+test('builds payload with top_k', function () {
+    $conversation = new ConversationBuilder($this->mockClient);
+    $conversation
+        ->user('Test')
+        ->topK(40);
+
+    $job = new ProcessConversation($conversation, TestCallback::class);
+
+    $reflection = new ReflectionClass($job);
+    $method = $reflection->getMethod('buildPayload');
+    $method->setAccessible(true);
+
+    $payload = $method->invoke($job);
+
+    expect($payload['top_k'])->toBe(40);
+});
+
+test('builds payload with top_p', function () {
+    $conversation = new ConversationBuilder($this->mockClient);
+    $conversation
+        ->user('Test')
+        ->topP(0.9);
+
+    $job = new ProcessConversation($conversation, TestCallback::class);
+
+    $reflection = new ReflectionClass($job);
+    $method = $reflection->getMethod('buildPayload');
+    $method->setAccessible(true);
+
+    $payload = $method->invoke($job);
+
+    expect($payload['top_p'])->toBe(0.9);
+});
+
+test('builds payload with metadata', function () {
+    $conversation = new ConversationBuilder($this->mockClient);
+    $conversation
+        ->user('Test')
+        ->metadata(['user_id' => 'user_123']);
+
+    $job = new ProcessConversation($conversation, TestCallback::class);
+
+    $reflection = new ReflectionClass($job);
+    $method = $reflection->getMethod('buildPayload');
+    $method->setAccessible(true);
+
+    $payload = $method->invoke($job);
+
+    expect($payload['metadata'])->toBe(['user_id' => 'user_123']);
+});
+
+test('builds payload with service tier', function () {
+    $conversation = new ConversationBuilder($this->mockClient);
+    $conversation
+        ->user('Test')
+        ->serviceTier('auto');
+
+    $job = new ProcessConversation($conversation, TestCallback::class);
+
+    $reflection = new ReflectionClass($job);
+    $method = $reflection->getMethod('buildPayload');
+    $method->setAccessible(true);
+
+    $payload = $method->invoke($job);
+
+    expect($payload['service_tier'])->toBe('auto');
+});
+
 test('has default tries and backoff', function () {
     $conversation = new ConversationBuilder($this->mockClient);
     $conversation->user('Test');
