@@ -11,8 +11,10 @@ A Laravel wrapper for the official [Anthropic PHP SDK](https://github.com/anthro
 - **Official SDK** — Wraps `anthropic-ai/sdk`, not a custom HTTP implementation
 - **Laravel Native** — Facades, config, service provider, auto-discovery
 - **Fluent API** — Chainable conversation builder
+- **Tool System** — Define tools with fluent builder and automatic execution loop
 - **MCP Connector** — First Laravel package with MCP client support
-- **Beta Features** — Extended thinking, prompt caching, structured outputs
+- **Streaming** — Real-time streaming with Laravel events
+- **Testing Utilities** — `Claude::fake()` with assertion helpers
 
 ## Requirements
 
@@ -85,6 +87,162 @@ $followUp = $conversation
     ->send();
 ```
 
+### Streaming
+
+Stream responses in real-time with callback support:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+Claude::conversation()
+    ->system('You are a helpful assistant.')
+    ->user('Write a short poem about Laravel.')
+    ->stream(function (string $text) {
+        echo $text; // Output each chunk as it arrives
+    });
+```
+
+Or listen for Laravel events:
+
+```php
+// In your EventServiceProvider or listener
+use GoldenPathDigital\Claude\Events\StreamChunk;
+use GoldenPathDigital\Claude\Events\StreamComplete;
+
+Event::listen(StreamChunk::class, function (StreamChunk $event) {
+    broadcast(new NewChunk($event->text)); // Real-time to frontend
+});
+
+Event::listen(StreamComplete::class, function (StreamComplete $event) {
+    logger()->info('Stream complete', [
+        'input_tokens' => $event->usage['input_tokens'],
+        'output_tokens' => $event->usage['output_tokens'],
+    ]);
+});
+```
+
+### Tools
+
+Define tools with a fluent builder and let Claude execute them automatically:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+use GoldenPathDigital\Claude\Tools\Tool;
+
+$weatherTool = Tool::make('get_weather')
+    ->description('Get the current weather for a location')
+    ->parameter('location', 'string', 'City name', required: true)
+    ->parameter('units', 'string', 'Temperature units', enum: ['celsius', 'fahrenheit'])
+    ->handler(function (array $input) {
+        // Call your weather API here
+        return ['temperature' => 72, 'condition' => 'sunny'];
+    });
+
+$response = Claude::conversation()
+    ->system('You are a helpful assistant with access to weather data.')
+    ->user('What is the weather in Paris?')
+    ->tools([$weatherTool])
+    ->maxSteps(5) // Maximum tool execution iterations
+    ->send();
+
+echo $response->content[0]->text;
+// "The current weather in Paris is 72 degrees and sunny."
+```
+
+### MCP Connector
+
+Connect to remote MCP servers via Anthropic's connector API:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+use GoldenPathDigital\Claude\MCP\McpServer;
+
+// Define MCP server inline
+$zapier = McpServer::url('https://mcp.zapier.com/api/mcp/s/xxx')
+    ->name('zapier')
+    ->token(env('ZAPIER_MCP_TOKEN'))
+    ->allowTools(['gmail_send', 'slack_post']); // Optional: restrict tools
+
+$response = Claude::conversation()
+    ->system('You are an assistant that can send emails and Slack messages.')
+    ->user('Send a Slack message to #general saying hello')
+    ->mcp([$zapier])
+    ->send();
+```
+
+Or use pre-configured servers from config:
+
+```php
+// config/claude.php
+'mcp_servers' => [
+    'zapier' => [
+        'url' => env('ZAPIER_MCP_URL'),
+        'token' => env('ZAPIER_MCP_TOKEN'),
+        'allowed_tools' => ['gmail_send', 'slack_post'],
+    ],
+],
+
+// Usage - reference by config key
+$response = Claude::conversation()
+    ->mcp(['zapier']) // Loads from config
+    ->user('Send an email to john@example.com')
+    ->send();
+```
+
+## Testing
+
+Use `Claude::fake()` to mock responses in your tests:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+use GoldenPathDigital\Claude\Testing\FakeResponse;
+
+public function test_chatbot_responds()
+{
+    Claude::fake([
+        FakeResponse::make('Hello! How can I help you today?'),
+    ]);
+
+    $response = Claude::conversation()
+        ->user('Hi there!')
+        ->send();
+
+    $this->assertEquals('Hello! How can I help you today?', $response->content[0]->text);
+
+    // Assert the request was sent
+    Claude::assertSent(function (array $request) {
+        return $request['messages'][0]['content'] === 'Hi there!';
+    });
+}
+```
+
+### Available Assertions
+
+```php
+// Assert any request was sent
+Claude::assertSent();
+
+// Assert with callback
+Claude::assertSent(function (array $request) {
+    return str_contains($request['messages'][0]['content'], 'hello');
+});
+
+// Assert nothing was sent
+Claude::assertNothingSent();
+
+// Assert specific count
+Claude::assertSentCount(3);
+```
+
+### Faking Tool Use Responses
+
+```php
+Claude::fake([
+    FakeResponse::withToolUse('get_weather', ['location' => 'Paris']),
+    FakeResponse::make('The weather in Paris is sunny and 72 degrees.'),
+]);
+```
+
 ## Configuration
 
 ```php
@@ -104,20 +262,20 @@ return [
     ],
     
     'mcp_servers' => [
-        // Pre-configured MCP servers
+        'zapier' => [
+            'url' => env('ZAPIER_MCP_URL'),
+            'token' => env('ZAPIER_MCP_TOKEN'),
+        ],
     ],
 ];
 ```
 
 ## Coming Soon
 
-- **MCP Connector** — Connect to remote MCP servers via Anthropic's connector API
-- **Tool System** — Define and execute tools with automatic handling
-- **Streaming** — Real-time streaming with Laravel events
-- **Extended Thinking** — Access Claude's reasoning process
+- **Extended Thinking** — Access Claude's reasoning process with budget tokens
 - **Prompt Caching** — Reduce costs with cached system prompts
+- **Structured Outputs** — JSON schema validation for responses
 - **Queue Integration** — Process conversations in background jobs
-- **Testing Utilities** — `Claude::fake()` with assertion helpers
 
 ## Testing
 
