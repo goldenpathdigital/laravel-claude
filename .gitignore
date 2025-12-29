@@ -1,0 +1,30 @@
+# System
+.notes/
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build artifacts
+/build/
+/dist/
+
+# Testing
+.phpunit.result.cache
+.phpunit.cache/
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Composer
+composer.lock
