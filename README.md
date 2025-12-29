@@ -17,6 +17,7 @@ A Laravel wrapper for the official [Anthropic PHP SDK](https://github.com/anthro
 - **Extended Thinking** — Access Claude's reasoning process with budget tokens
 - **Prompt Caching** — Reduce costs with cached system prompts
 - **Structured Outputs** — JSON schema validation for responses
+- **Queue Integration** — Process conversations in background jobs with retry handling
 - **Testing Utilities** — `Claude::fake()` with assertion helpers
 
 ## Requirements
@@ -350,9 +351,55 @@ return [
 ];
 ```
 
-## Coming Soon
+### Queue Integration
 
-- **Queue Integration** — Process conversations in background jobs with retry handling
+Process conversations in background jobs with automatic retry handling:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+use GoldenPathDigital\Claude\Jobs\ProcessConversation;
+use GoldenPathDigital\Claude\Contracts\ConversationCallback;
+use Anthropic\Messages\Message;
+use Throwable;
+
+// Create a callback to handle the result
+class DocumentAnalysisCallback implements ConversationCallback
+{
+    public function onSuccess(Message $response, array $context = []): void
+    {
+        $document = Document::find($context['document_id']);
+        $document->update([
+            'summary' => $response->content[0]->text,
+            'analyzed_at' => now(),
+        ]);
+    }
+
+    public function onFailure(Throwable $exception, array $context = []): void
+    {
+        Log::error('Document analysis failed', [
+            'document_id' => $context['document_id'],
+            'error' => $exception->getMessage(),
+        ]);
+    }
+}
+
+// Dispatch the conversation to the queue
+ProcessConversation::dispatch(
+    conversation: Claude::conversation()
+        ->system('You are a document analyst. Summarize the key points.')
+        ->user($documentContent),
+    callbackClass: DocumentAnalysisCallback::class,
+    context: ['document_id' => $document->id]
+)->onQueue('ai');
+```
+
+The job includes:
+- **Automatic retries**: 3 attempts with 10 second backoff
+- **Callback pattern**: Handle success/failure in dedicated classes
+- **Context passing**: Pass arbitrary data to the callback
+- **Full feature support**: MCP servers, extended thinking, caching, structured outputs
+
+**Note**: Tools with custom handlers (closures) cannot be serialized for queue jobs. Use MCP servers or basic conversations for queued processing.
 
 ## Testing
 
