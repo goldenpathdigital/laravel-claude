@@ -4,11 +4,19 @@ declare(strict_types=1);
 
 namespace GoldenPathDigital\Claude\Conversation;
 
-use GoldenPathDigital\Claude\ClaudeManager;
+use Anthropic\Messages\Message;
+use Anthropic\Messages\RawContentBlockDeltaEvent;
+use Anthropic\Messages\RawMessageDeltaEvent;
+use Anthropic\Messages\RawMessageStartEvent;
+use Anthropic\Messages\TextBlock;
+use Closure;
+use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
+use GoldenPathDigital\Claude\Events\StreamChunk;
+use GoldenPathDigital\Claude\Events\StreamComplete;
 
 class ConversationBuilder
 {
-    protected ClaudeManager $manager;
+    protected ClaudeClientInterface $client;
 
     protected ?string $model = null;
 
@@ -20,10 +28,10 @@ class ConversationBuilder
 
     protected ?float $temperature = null;
 
-    public function __construct(ClaudeManager $manager)
+    public function __construct(ClaudeClientInterface $client)
     {
-        $this->manager = $manager;
-        $this->model = $manager->config('default_model');
+        $this->client = $client;
+        $this->model = $client->config('default_model');
     }
 
     public function model(string $model): self
@@ -74,7 +82,7 @@ class ConversationBuilder
         return $this;
     }
 
-    public function send(): \Anthropic\Responses\Messages\CreateResponse
+    protected function buildPayload(): array
     {
         $payload = [
             'model' => $this->model,
@@ -90,20 +98,94 @@ class ConversationBuilder
             $payload['temperature'] = $this->temperature;
         }
 
-        $response = $this->manager->messages()->create($payload);
+        return $payload;
+    }
+
+    public function send(): Message
+    {
+        $payload = $this->buildPayload();
+
+        $response = $this->client->messages()->create($payload);
 
         $this->appendAssistantResponse($response);
 
         return $response;
     }
 
-    protected function appendAssistantResponse(\Anthropic\Responses\Messages\CreateResponse $response): void
+    /** @param  Closure(StreamChunk): void  $callback */
+    public function stream(Closure $callback): StreamComplete
     {
-        if (! empty($response->content)) {
+        $payload = $this->buildPayload();
+
+        $stream = $this->client->messages()->createStream($payload);
+
+        $fullText = '';
+        $chunkIndex = 0;
+        $message = null;
+        $stopReason = null;
+
+        foreach ($stream as $event) {
+            if ($event instanceof RawMessageStartEvent) {
+                $message = $event->message;
+            }
+
+            if ($event instanceof RawContentBlockDeltaEvent) {
+                $delta = $event->delta;
+
+                if (isset($delta->text)) {
+                    $text = $delta->text;
+                    $fullText .= $text;
+
+                    $chunk = new StreamChunk(
+                        text: $text,
+                        index: $chunkIndex++,
+                        type: $delta->type ?? 'text_delta',
+                    );
+
+                    $callback($chunk);
+
+                    if (function_exists('event')) {
+                        event($chunk);
+                    }
+                }
+            }
+
+            if ($event instanceof RawMessageDeltaEvent) {
+                $stopReason = $event->delta->stop_reason ?? null;
+            }
+        }
+
+        if ($fullText !== '') {
             $this->messages[] = [
                 'role' => 'assistant',
-                'content' => $response->content[0]->text ?? '',
+                'content' => $fullText,
             ];
+        }
+
+        $complete = new StreamComplete(
+            message: $message,
+            fullText: $fullText,
+            stopReason: $stopReason,
+        );
+
+        if (function_exists('event')) {
+            event($complete);
+        }
+
+        return $complete;
+    }
+
+    protected function appendAssistantResponse(Message $response): void
+    {
+        if (! empty($response->content)) {
+            $firstBlock = $response->content[0] ?? null;
+
+            if ($firstBlock instanceof TextBlock) {
+                $this->messages[] = [
+                    'role' => 'assistant',
+                    'content' => $firstBlock->text,
+                ];
+            }
         }
     }
 
