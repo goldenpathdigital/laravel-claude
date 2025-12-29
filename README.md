@@ -10,7 +10,8 @@ A Laravel wrapper for the official [Anthropic PHP SDK](https://github.com/anthro
 
 - **Official SDK** — Wraps `anthropic-ai/sdk`, not a custom HTTP implementation
 - **Laravel Native** — Facades, config, service provider, auto-discovery
-- **Fluent API** — Chainable conversation builder
+- **Fluent API** — Chainable conversation builder with image support
+- **Full API Coverage** — Messages, Models, Batches, Files, Token Counting
 - **Tool System** — Define tools with fluent builder and automatic execution loop
 - **MCP Connector** — First Laravel package with MCP client support
 - **Streaming** — Real-time streaming with Laravel events
@@ -61,6 +62,109 @@ $response = Claude::messages()->create([
 echo $response->content[0]->text;
 ```
 
+### Models API
+
+List and retrieve available Claude models:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+// List all available models
+$models = Claude::models()->list([]);
+
+foreach ($models as $model) {
+    echo $model->id . ' - ' . $model->display_name;
+}
+
+// Get a specific model
+$model = Claude::models()->retrieve('claude-sonnet-4-5-20250929', []);
+echo $model->display_name;
+```
+
+### Message Batches API
+
+Process multiple messages in batch for high-throughput workloads:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+// Create a batch
+$batch = Claude::batches()->create([
+    'requests' => [
+        [
+            'custom_id' => 'request-1',
+            'params' => [
+                'model' => 'claude-sonnet-4-5-20250929',
+                'max_tokens' => 1024,
+                'messages' => [['role' => 'user', 'content' => 'Hello!']],
+            ],
+        ],
+        [
+            'custom_id' => 'request-2',
+            'params' => [
+                'model' => 'claude-sonnet-4-5-20250929',
+                'max_tokens' => 1024,
+                'messages' => [['role' => 'user', 'content' => 'How are you?']],
+            ],
+        ],
+    ],
+]);
+
+// Check batch status
+$batch = Claude::batches()->retrieve($batch->id, []);
+echo $batch->processing_status;
+
+// List all batches
+$batches = Claude::batches()->list([]);
+
+// Get results when complete
+$results = Claude::batches()->results($batch->id, []);
+
+// Cancel a batch
+Claude::batches()->cancel($batch->id, []);
+
+// Delete a completed batch
+Claude::batches()->delete($batch->id, []);
+```
+
+### Files API
+
+Manage files uploaded to the Anthropic API:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+// List all files
+$files = Claude::files()->list([]);
+
+foreach ($files as $file) {
+    echo $file->id . ' - ' . $file->filename;
+}
+
+// Get file metadata
+$file = Claude::files()->retrieveMetadata($fileId, []);
+
+// Delete a file
+Claude::files()->delete($fileId, []);
+```
+
+### Token Counting
+
+Count tokens before sending a request:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+$count = Claude::countTokens([
+    'model' => 'claude-sonnet-4-5-20250929',
+    'messages' => [
+        ['role' => 'user', 'content' => 'Hello, how are you?'],
+    ],
+]);
+
+echo "Input tokens: " . $count->input_tokens;
+```
+
 ### Fluent Conversation Builder
 
 ```php
@@ -88,6 +192,35 @@ $conversation = Claude::conversation()
 // Continue the conversation
 $followUp = $conversation
     ->user('What about error handling?')
+    ->send();
+```
+
+### Image Support
+
+Send images for Claude to analyze:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+// Base64 encoded image
+$imageData = base64_encode(file_get_contents('photo.jpg'));
+
+$response = Claude::conversation()
+    ->image($imageData, 'image/jpeg', 'What is in this image?')
+    ->send();
+
+// URL-based image
+$response = Claude::conversation()
+    ->imageUrl('https://example.com/image.png', 'Describe this diagram')
+    ->send();
+
+// Complex multi-modal messages
+$response = Claude::conversation()
+    ->user([
+        ['type' => 'text', 'text' => 'Compare these two images:'],
+        ['type' => 'image', 'source' => ['type' => 'url', 'url' => 'https://example.com/img1.jpg']],
+        ['type' => 'image', 'source' => ['type' => 'url', 'url' => 'https://example.com/img2.jpg']],
+    ])
     ->send();
 ```
 

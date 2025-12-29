@@ -10,6 +10,14 @@ interface ClaudeClientInterface
 {
     public function messages(): mixed;
 
+    public function models(): mixed;
+
+    public function batches(): mixed;
+
+    public function files(): mixed;
+
+    public function countTokens(array $params): mixed;
+
     public function conversation(): ConversationBuilder;
 
     public function config(string $key, mixed $default = null): mixed;

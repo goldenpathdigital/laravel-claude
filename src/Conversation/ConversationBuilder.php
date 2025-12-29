@@ -81,8 +81,63 @@ class ConversationBuilder
         return $this;
     }
 
-    public function user(string $content): self
+    public function user(string|array $content): self
     {
+        $this->messages[] = [
+            'role' => 'user',
+            'content' => $content,
+        ];
+
+        return $this;
+    }
+
+    public function image(string $data, string $mediaType, ?string $text = null): self
+    {
+        $content = [
+            [
+                'type' => 'image',
+                'source' => [
+                    'type' => 'base64',
+                    'media_type' => $mediaType,
+                    'data' => $data,
+                ],
+            ],
+        ];
+
+        if ($text !== null) {
+            $content[] = [
+                'type' => 'text',
+                'text' => $text,
+            ];
+        }
+
+        $this->messages[] = [
+            'role' => 'user',
+            'content' => $content,
+        ];
+
+        return $this;
+    }
+
+    public function imageUrl(string $url, ?string $text = null): self
+    {
+        $content = [
+            [
+                'type' => 'image',
+                'source' => [
+                    'type' => 'url',
+                    'url' => $url,
+                ],
+            ],
+        ];
+
+        if ($text !== null) {
+            $content[] = [
+                'type' => 'text',
+                'text' => $text,
+            ];
+        }
+
         $this->messages[] = [
             'role' => 'user',
             'content' => $content,

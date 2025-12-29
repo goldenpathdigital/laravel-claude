@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace GoldenPathDigital\Claude;
 
 use Anthropic\Client;
+use Anthropic\Services\Beta\FilesService;
+use Anthropic\Services\Beta\Messages\BatchesService;
 use Anthropic\Services\MessagesService;
+use Anthropic\Services\ModelsService;
 use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
 use GoldenPathDigital\Claude\Testing\FakeResponse;
@@ -40,6 +43,26 @@ class ClaudeManager implements ClaudeClientInterface
     public function messages(): MessagesService
     {
         return $this->client->messages;
+    }
+
+    public function models(): ModelsService
+    {
+        return $this->client->models;
+    }
+
+    public function batches(): BatchesService
+    {
+        return $this->client->beta->messages->batches;
+    }
+
+    public function files(): FilesService
+    {
+        return $this->client->beta->files;
+    }
+
+    public function countTokens(array $params): mixed
+    {
+        return $this->client->beta->messages->countTokens($params);
     }
 
     public function conversation(): ConversationBuilder
