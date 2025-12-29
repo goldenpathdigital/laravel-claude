@@ -16,6 +16,7 @@ use GoldenPathDigital\Claude\Events\StreamChunk;
 use GoldenPathDigital\Claude\Events\StreamComplete;
 use GoldenPathDigital\Claude\MCP\McpServer;
 use GoldenPathDigital\Claude\Tools\Tool;
+use GoldenPathDigital\Claude\ValueObjects\CachedContent;
 
 class ConversationBuilder
 {
@@ -23,7 +24,7 @@ class ConversationBuilder
 
     protected ?string $model = null;
 
-    protected ?string $system = null;
+    protected string|CachedContent|null $system = null;
 
     protected array $messages = [];
 
@@ -39,6 +40,12 @@ class ConversationBuilder
 
     protected int $maxSteps = 1;
 
+    protected ?int $thinkingBudget = null;
+
+    protected ?array $jsonSchema = null;
+
+    protected ?string $jsonSchemaName = null;
+
     public function __construct(ClaudeClientInterface $client)
     {
         $this->client = $client;
@@ -52,9 +59,24 @@ class ConversationBuilder
         return $this;
     }
 
-    public function system(string $system): self
+    public function system(string|CachedContent $system): self
     {
         $this->system = $system;
+
+        return $this;
+    }
+
+    public function extendedThinking(int $budgetTokens): self
+    {
+        $this->thinkingBudget = $budgetTokens;
+
+        return $this;
+    }
+
+    public function schema(array $schema, string $name = 'structured_output'): self
+    {
+        $this->jsonSchema = $schema;
+        $this->jsonSchemaName = $name;
 
         return $this;
     }
@@ -136,15 +158,40 @@ class ConversationBuilder
         ];
 
         if ($this->system !== null) {
-            $payload['system'] = $this->system;
+            if ($this->system instanceof CachedContent) {
+                $payload['system'] = [$this->system->toArray()];
+            } else {
+                $payload['system'] = $this->system;
+            }
         }
 
         if ($this->temperature !== null) {
             $payload['temperature'] = $this->temperature;
         }
 
-        if (! empty($this->tools)) {
-            $payload['tools'] = array_map(fn (Tool $tool) => $tool->toArray(), $this->tools);
+        if ($this->thinkingBudget !== null) {
+            $payload['thinking'] = [
+                'type' => 'enabled',
+                'budget_tokens' => $this->thinkingBudget,
+            ];
+        }
+
+        $tools = array_map(fn (Tool $tool) => $tool->toArray(), $this->tools);
+
+        if ($this->jsonSchema !== null) {
+            $tools[] = [
+                'name' => $this->jsonSchemaName,
+                'description' => 'Respond with structured data matching the provided schema',
+                'input_schema' => $this->jsonSchema,
+            ];
+            $payload['tool_choice'] = [
+                'type' => 'tool',
+                'name' => $this->jsonSchemaName,
+            ];
+        }
+
+        if (! empty($tools)) {
+            $payload['tools'] = $tools;
         }
 
         if (! empty($this->mcpServers)) {
@@ -346,15 +393,37 @@ class ConversationBuilder
 
     public function toArray(): array
     {
+        $system = $this->system;
+        if ($system instanceof CachedContent) {
+            $system = $system->toArray();
+        }
+
         return [
             'model' => $this->model,
-            'system' => $this->system,
+            'system' => $system,
             'messages' => $this->messages,
             'max_tokens' => $this->maxTokens,
             'temperature' => $this->temperature,
             'tools' => array_map(fn (Tool $t) => $t->toArray(), $this->tools),
             'mcp_servers' => array_map(fn (McpServer $s) => $s->toArray(), $this->mcpServers),
             'max_steps' => $this->maxSteps,
+            'thinking_budget' => $this->thinkingBudget,
+            'json_schema' => $this->jsonSchema,
         ];
+    }
+
+    /**
+     * Extract structured data from a tool_use response.
+     * Use this after send() when using schema() to get the structured output.
+     */
+    public static function extractStructuredOutput(Message $response): ?array
+    {
+        foreach ($response->content as $block) {
+            if ($block instanceof ToolUseBlock) {
+                return $block->input;
+            }
+        }
+
+        return null;
     }
 }
