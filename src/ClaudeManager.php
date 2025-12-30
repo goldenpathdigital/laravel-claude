@@ -13,62 +13,85 @@ use Anthropic\Services\MessagesService;
 use Anthropic\Services\ModelsService;
 use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
+use GoldenPathDigital\Claude\Exceptions\ConfigurationException;
 use GoldenPathDigital\Claude\Testing\FakeResponse;
 use GoldenPathDigital\Claude\Testing\PendingClaudeFake;
 use GoldenPathDigital\Claude\ValueObjects\TokenCost;
-use ReflectionClass;
 
 class ClaudeManager implements ClaudeClientInterface
 {
     protected Client $client;
 
+    /** @var array<string, mixed> */
     protected array $config;
+
+    protected RequestOptions $requestOptions;
 
     protected static ?PendingClaudeFake $fake = null;
 
-    protected static bool $fakeAutoResetRegistered = false;
+    /** @var array<string> */
+    public const KNOWN_MODELS = [
+        'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229',
+        'claude-3-haiku-20240307',
+        'claude-3-5-sonnet-20240620',
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-sonnet-4-5-20250929',
+        'claude-opus-4-20250514',
+        'claude-sonnet-4-20250514',
+    ];
 
+    /**
+     * @param array<string, mixed> $config
+     *
+     * @throws ConfigurationException
+     */
     public function __construct(array $config)
     {
         $this->config = $config;
+        $this->validateConfig();
+        $this->requestOptions = $this->buildRequestOptions();
         $this->client = $this->createClient();
+    }
+
+    /** @throws ConfigurationException */
+    protected function validateConfig(): void
+    {
+        $apiKey = $this->config['api_key'] ?? null;
+        $authToken = $this->config['auth_token'] ?? null;
+
+        if (empty($apiKey) && empty($authToken)) {
+            throw new ConfigurationException(
+                'Either ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN must be configured. '.
+                'Set one of these in your .env file or config/claude.php.'
+            );
+        }
+    }
+
+    protected function buildRequestOptions(): RequestOptions
+    {
+        $timeout = $this->config['timeout'] ?? null;
+        $maxRetries = $this->config['max_retries'] ?? null;
+        $betaHeaders = $this->betaHeaders();
+
+        return RequestOptions::with(
+            timeout: is_numeric($timeout) ? (float) $timeout : null,
+            maxRetries: is_numeric($maxRetries) ? (int) $maxRetries : null,
+            extraHeaders: ! empty($betaHeaders) ? $betaHeaders : null,
+        );
     }
 
     protected function createClient(): Client
     {
-        $client = new Client(
+        return new Client(
             apiKey: $this->config['api_key'] ?? null,
             authToken: $this->config['auth_token'] ?? null,
             baseUrl: $this->config['base_url'] ?? null,
         );
-
-        $this->applyConfigToClient($client);
-
-        return $client;
     }
 
-    protected function applyConfigToClient(Client $client): void
-    {
-        $options = $this->cloneClientOptions($client);
-
-        $timeout = $this->config['timeout'] ?? null;
-        if (is_numeric($timeout)) {
-            $options->timeout = (float) $timeout;
-        }
-
-        $maxRetries = $this->config['max_retries'] ?? null;
-        if (is_numeric($maxRetries)) {
-            $options->maxRetries = (int) $maxRetries;
-        }
-
-        $betaHeaders = $this->betaHeaders();
-        if (! empty($betaHeaders)) {
-            $options->extraHeaders = array_merge($options->extraHeaders ?? [], $betaHeaders);
-        }
-
-        $this->setClientOptions($client, $options);
-    }
-
+    /** @return array<string, string> */
     protected function betaHeaders(): array
     {
         $features = $this->config['beta_features'] ?? [];
@@ -94,61 +117,22 @@ class ClaudeManager implements ClaudeClientInterface
         return ['anthropic-beta' => implode(',', $enabled)];
     }
 
-    protected function cloneClientOptions(Client $client): RequestOptions
+    public function getRequestOptions(): RequestOptions
     {
-        $property = $this->clientOptionsProperty($client);
-        $options = $property->getValue($client);
-
-        if (! $options instanceof RequestOptions) {
-            throw new \RuntimeException(
-                'Anthropic SDK internals changed: options is not RequestOptions. Upgrade laravel-claude.'
-            );
-        }
-
-        return clone $options;
+        return $this->requestOptions;
     }
 
-    protected function setClientOptions(Client $client, RequestOptions $options): void
+    /** @param array<string, mixed> $overrides */
+    public function getRequestOptionsWith(array $overrides = []): RequestOptions
     {
-        $property = $this->clientOptionsProperty($client);
-        $property->setValue($client, $options);
-    }
-
-    protected function clientOptionsProperty(Client $client): \ReflectionProperty
-    {
-        $class = new ReflectionClass($client);
-        $base = $class->getParentClass();
-
-        if ($base === false) {
-            throw new \RuntimeException(
-                'Anthropic SDK internals changed: Client has no parent. Upgrade laravel-claude.'
-            );
-        }
-
-        if (! $base->hasProperty('options')) {
-            throw new \RuntimeException(
-                'Anthropic SDK internals changed: BaseClient has no options. Upgrade laravel-claude.'
-            );
-        }
-
-        $property = $base->getProperty('options');
-
-        try {
-            $property->setAccessible(true);
-        } catch (\ReflectionException $e) {
-            throw new \RuntimeException(
-                'Anthropic SDK internals changed: cannot access options. Upgrade laravel-claude.',
-                0,
-                $e
-            );
-        }
-
-        return $property;
-    }
-
-    public function getClientOptions(): RequestOptions
-    {
-        return $this->cloneClientOptions($this->client);
+        return RequestOptions::with(
+            timeout: $overrides['timeout'] ?? $this->requestOptions->timeout,
+            maxRetries: $overrides['maxRetries'] ?? $this->requestOptions->maxRetries,
+            extraHeaders: array_merge(
+                $this->requestOptions->extraHeaders ?? [],
+                $overrides['extraHeaders'] ?? []
+            ),
+        );
     }
 
     public function client(): Client
@@ -206,6 +190,32 @@ class ClaudeManager implements ClaudeClientInterface
         return $pricingConfig['claude-sonnet'] ?? ['input' => 3.00, 'output' => 15.00];
     }
 
+    public static function isKnownModel(string $model): bool
+    {
+        if (in_array($model, self::KNOWN_MODELS, true)) {
+            return true;
+        }
+
+        $patterns = [
+            '/^claude-3-opus-\d{8}$/',
+            '/^claude-3-sonnet-\d{8}$/',
+            '/^claude-3-haiku-\d{8}$/',
+            '/^claude-3-5-sonnet-\d{8}$/',
+            '/^claude-3-5-haiku-\d{8}$/',
+            '/^claude-sonnet-4-5-\d{8}$/',
+            '/^claude-opus-4-\d{8}$/',
+            '/^claude-sonnet-4-\d{8}$/',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $model)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function conversation(): ConversationBuilder
     {
         if (static::$fake !== null) {
@@ -229,13 +239,6 @@ class ClaudeManager implements ClaudeClientInterface
 
         if (function_exists('app') && app()->bound('app')) {
             app()->instance(ClaudeManager::class, static::$fake);
-
-            if (! static::$fakeAutoResetRegistered) {
-                app()->terminating(function () {
-                    static::clearFake();
-                });
-                static::$fakeAutoResetRegistered = true;
-            }
         }
 
         return static::$fake;
@@ -244,7 +247,6 @@ class ClaudeManager implements ClaudeClientInterface
     public static function clearFake(): void
     {
         static::$fake = null;
-        static::$fakeAutoResetRegistered = false;
 
         if (function_exists('app') && app()->bound(ClaudeManager::class)) {
             app()->forgetInstance(ClaudeManager::class);

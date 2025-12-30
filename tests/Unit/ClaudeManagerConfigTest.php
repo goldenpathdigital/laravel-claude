@@ -11,7 +11,7 @@ test('config timeout is applied to client options', function () {
         'timeout' => 60,
     ]);
 
-    $options = $manager->getClientOptions();
+    $options = $manager->getRequestOptions();
 
     expect($options)->toBeInstanceOf(RequestOptions::class);
     expect($options->timeout)->toBe(60.0);
@@ -23,7 +23,7 @@ test('config max_retries is applied to client options', function () {
         'max_retries' => 5,
     ]);
 
-    $options = $manager->getClientOptions();
+    $options = $manager->getRequestOptions();
 
     expect($options->maxRetries)->toBe(5);
 });
@@ -39,7 +39,7 @@ test('beta features add anthropic-beta header', function () {
         ],
     ]);
 
-    $options = $manager->getClientOptions();
+    $options = $manager->getRequestOptions();
 
     expect($options->extraHeaders)->toHaveKey('anthropic-beta');
     expect($options->extraHeaders['anthropic-beta'])->toContain('mcp-client-2025-11-20');
@@ -54,7 +54,7 @@ test('empty beta features does not add header', function () {
         'beta_features' => [],
     ]);
 
-    $options = $manager->getClientOptions();
+    $options = $manager->getRequestOptions();
 
     expect($options->extraHeaders ?? [])->not->toHaveKey('anthropic-beta');
 });
@@ -68,7 +68,7 @@ test('all disabled beta features does not add header', function () {
         ],
     ]);
 
-    $options = $manager->getClientOptions();
+    $options = $manager->getRequestOptions();
 
     expect($options->extraHeaders ?? [])->not->toHaveKey('anthropic-beta');
 });
@@ -91,7 +91,7 @@ test('numeric string timeout is converted to float', function () {
         'timeout' => '120',
     ]);
 
-    $options = $manager->getClientOptions();
+    $options = $manager->getRequestOptions();
 
     expect($options->timeout)->toBe(120.0);
 });
@@ -102,7 +102,7 @@ test('numeric string max_retries is converted to int', function () {
         'max_retries' => '3',
     ]);
 
-    $options = $manager->getClientOptions();
+    $options = $manager->getRequestOptions();
 
     expect($options->maxRetries)->toBe(3);
 });

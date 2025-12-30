@@ -7,14 +7,44 @@
 
 A Laravel wrapper for the official [Anthropic PHP SDK](https://github.com/anthropics/anthropic-sdk-php) with first-class MCP connector support.
 
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Direct SDK Access](#direct-sdk-access)
+  - [Models API](#models-api)
+  - [Message Batches API](#message-batches-api)
+  - [Files API](#files-api)
+  - [Token Counting](#token-counting)
+  - [Cost Estimation](#cost-estimation)
+  - [Fluent Conversation Builder](#fluent-conversation-builder)
+  - [Multi-turn Conversations](#multi-turn-conversations)
+  - [Image Support](#image-support)
+  - [PDF Documents](#pdf-documents)
+  - [Advanced Parameters](#advanced-parameters)
+  - [Streaming](#streaming)
+  - [Tools](#tools)
+  - [MCP Connector](#mcp-connector)
+  - [Extended Thinking](#extended-thinking)
+  - [Prompt Caching](#prompt-caching)
+  - [Structured Outputs](#structured-outputs)
+- [Testing](#testing)
+  - [Available Assertions](#available-assertions)
+  - [Faking Tool Use Responses](#faking-tool-use-responses)
+- [Configuration](#configuration)
+  - [Queue Integration](#queue-integration)
+- [License](#license)
+
 ## Features
 
-- **Official SDK** — Wraps `anthropic-ai/sdk`, not a custom HTTP implementation
+- **Official SDK** — Wraps [`anthropic-ai/sdk`](https://github.com/anthropics/anthropic-sdk-php), not a custom HTTP implementation
 - **Laravel Native** — Facades, config, service provider, auto-discovery
 - **Fluent API** — Chainable conversation builder with image support
 - **Full API Coverage** — Messages, Models, Batches, Files, Token Counting
 - **Tool System** — Define tools with fluent builder and automatic execution loop
-- **MCP Connector** — First Laravel package with MCP client support
+- **MCP Connector** — First Laravel package with [MCP](https://modelcontextprotocol.io/) client support
 - **Streaming** — Real-time streaming with Laravel events
 - **Extended Thinking** — Access Claude's reasoning process with budget tokens
 - **Prompt Caching** — Reduce costs with cached system prompts
@@ -303,7 +333,6 @@ Claude::conversation()
 Or listen for Laravel events:
 
 ```php
-// In your EventServiceProvider or listener
 use GoldenPathDigital\Claude\Events\StreamChunk;
 use GoldenPathDigital\Claude\Events\StreamComplete;
 
@@ -349,7 +378,7 @@ echo $response->content[0]->text;
 
 ### MCP Connector
 
-Connect to remote MCP servers via Anthropic's connector API:
+Connect to remote [MCP servers](https://modelcontextprotocol.io/) via Anthropic's connector API:
 
 ```php
 use GoldenPathDigital\Claude\Facades\Claude;
@@ -611,7 +640,7 @@ The job includes:
 
 **Note**: Tools with custom handlers (closures) cannot be serialized for queue jobs. Use MCP servers or basic conversations for queued processing.
 
-## Testing
+## Running Tests
 
 ```bash
 composer test

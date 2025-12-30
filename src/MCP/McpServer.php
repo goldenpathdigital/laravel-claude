@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace GoldenPathDigital\Claude\MCP;
 
+use InvalidArgumentException;
+
 class McpServer
 {
+    /** @var array<string, mixed> */
     protected array $config = [];
 
+    /** @var array<string, mixed>|null */
     protected ?array $toolConfig = null;
 
+    /** @param array<string, mixed> $config */
     protected function __construct(array $config)
     {
         $this->config = $config;
@@ -17,21 +22,27 @@ class McpServer
 
     public static function url(string $url): self
     {
+        if (empty(trim($url))) {
+            throw new InvalidArgumentException('MCP server URL cannot be empty');
+        }
+
         return new self([
             'type' => 'url',
             'url' => $url,
         ]);
     }
 
+    /** @param array<string, mixed> $serverConfig */
     public static function fromConfig(string $name, array $serverConfig): self
     {
-        $instance = self::url($serverConfig['url'] ?? '');
+        $url = $serverConfig['url'] ?? '';
 
-        if (isset($serverConfig['name'])) {
-            $instance->name($serverConfig['name']);
-        } else {
-            $instance->name($name);
+        if (empty(trim($url))) {
+            throw new InvalidArgumentException("MCP server '{$name}' has no URL configured");
         }
+
+        $instance = self::url($url);
+        $instance->name($serverConfig['name'] ?? $name);
 
         if (isset($serverConfig['token'])) {
             $instance->token($serverConfig['token']);
@@ -50,6 +61,10 @@ class McpServer
 
     public function name(string $name): self
     {
+        if (empty(trim($name))) {
+            throw new InvalidArgumentException('MCP server name cannot be empty');
+        }
+
         $this->config['name'] = $name;
 
         return $this;
@@ -62,6 +77,7 @@ class McpServer
         return $this;
     }
 
+    /** @param array<string> $tools */
     public function allowTools(array $tools): self
     {
         $this->toolConfig = [
@@ -72,6 +88,7 @@ class McpServer
         return $this;
     }
 
+    /** @param array<string> $tools */
     public function denyTools(array $tools): self
     {
         $this->toolConfig = [
@@ -87,35 +104,41 @@ class McpServer
         return $this->config['name'] ?? null;
     }
 
-    /**
-     * Get the mcp_servers array entry (server definition only).
-     */
+    public function hasName(): bool
+    {
+        return isset($this->config['name']) && ! empty(trim($this->config['name']));
+    }
+
+    /** @return array<string, mixed> */
     public function toArray(): array
     {
-        // Return only server config, not tool_configuration
-        // Tool configuration is now handled via mcp_toolset in the tools array
+        if (! $this->hasName()) {
+            throw new InvalidArgumentException(
+                'MCP server must have a name. Call ->name() before using the server.'
+            );
+        }
+
         return $this->config;
     }
 
-    /**
-     * Get the mcp_toolset entry for the tools array.
-     *
-     * @return array The mcp_toolset configuration
-     */
+    /** @return array<string, mixed> */
     public function toToolsetArray(): array
     {
+        if (! $this->hasName()) {
+            throw new InvalidArgumentException(
+                'MCP server must have a name. Call ->name() before using the server.'
+            );
+        }
+
         $toolset = [
             'type' => 'mcp_toolset',
-            'mcp_server_name' => $this->config['name'] ?? '',
+            'mcp_server_name' => $this->config['name'],
         ];
 
-        // Convert old tool_configuration format to new mcp_toolset format
         if ($this->toolConfig !== null) {
             $defaultConfig = ['enabled' => $this->toolConfig['enabled'] ?? true];
 
-            // Handle allowed_tools by disabling all others (using default_config)
             if (isset($this->toolConfig['allowed_tools'])) {
-                // Set default to disabled, then enable specific tools
                 $defaultConfig['enabled'] = false;
                 $toolset['default_config'] = $defaultConfig;
 
@@ -127,7 +150,6 @@ class McpServer
                     $toolset['configs'] = $configs;
                 }
             } elseif (isset($this->toolConfig['denied_tools'])) {
-                // Set default to enabled, then disable specific tools
                 $defaultConfig['enabled'] = true;
                 $toolset['default_config'] = $defaultConfig;
 

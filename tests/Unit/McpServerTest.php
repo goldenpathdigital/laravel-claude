@@ -5,7 +5,8 @@ declare(strict_types=1);
 use GoldenPathDigital\Claude\MCP\McpServer;
 
 test('creates server with url', function () {
-    $server = McpServer::url('https://mcp.example.com/server');
+    $server = McpServer::url('https://mcp.example.com/server')
+        ->name('test-server');
 
     $array = $server->toArray();
 
@@ -23,6 +24,7 @@ test('sets server name', function () {
 
 test('sets authorization token', function () {
     $server = McpServer::url('https://example.com')
+        ->name('test-server')
         ->token('secret-token-123');
 
     $array = $server->toArray();

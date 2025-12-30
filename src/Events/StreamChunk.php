@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace GoldenPathDigital\Claude\Events;
 
+use GoldenPathDigital\Claude\Contracts\StreamEvent;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class StreamChunk
+class StreamChunk implements StreamEvent
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
