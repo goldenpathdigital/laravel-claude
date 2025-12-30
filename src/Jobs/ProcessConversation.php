@@ -129,12 +129,20 @@ class ProcessConversation implements ShouldQueue
             ];
         }
 
-        if (! empty($tools)) {
-            $payload['tools'] = $tools;
-        }
-
+        // Add MCP servers and their corresponding mcp_toolset entries
         if (! empty($this->config['mcp_servers'])) {
             $payload['mcp_servers'] = $this->config['mcp_servers'];
+
+            // Add mcp_toolset entries to tools array (required by mcp-client-2025-11-20)
+            if (! empty($this->config['mcp_toolsets'])) {
+                foreach ($this->config['mcp_toolsets'] as $toolset) {
+                    $tools[] = $toolset;
+                }
+            }
+        }
+
+        if (! empty($tools)) {
+            $payload['tools'] = $tools;
         }
 
         return $payload;

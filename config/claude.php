@@ -13,6 +13,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Base URL
+    |--------------------------------------------------------------------------
+    |
+    | Custom API endpoint for proxies or enterprise deployments.
+    | Leave null to use the default Anthropic API (https://api.anthropic.com).
+    |
+    */
+    'base_url' => env('ANTHROPIC_BASE_URL'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Model
     |--------------------------------------------------------------------------
     |

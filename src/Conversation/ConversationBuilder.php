@@ -344,12 +344,18 @@ class ConversationBuilder
             ];
         }
 
-        if (! empty($tools)) {
-            $payload['tools'] = $tools;
-        }
-
+        // Add MCP servers and their corresponding mcp_toolset entries
         if (! empty($this->mcpServers)) {
             $payload['mcp_servers'] = array_map(fn (McpServer $server) => $server->toArray(), $this->mcpServers);
+
+            // Add mcp_toolset entries to tools array (required by mcp-client-2025-11-20)
+            foreach ($this->mcpServers as $server) {
+                $tools[] = $server->toToolsetArray();
+            }
+        }
+
+        if (! empty($tools)) {
+            $payload['tools'] = $tools;
         }
 
         return $payload;
@@ -565,6 +571,7 @@ class ConversationBuilder
             'service_tier' => $this->serviceTier,
             'tools' => array_map(fn (Tool $t) => $t->toArray(), $this->tools),
             'mcp_servers' => array_map(fn (McpServer $s) => $s->toArray(), $this->mcpServers),
+            'mcp_toolsets' => array_map(fn (McpServer $s) => $s->toToolsetArray(), $this->mcpServers),
             'max_steps' => $this->maxSteps,
             'thinking_budget' => $this->thinkingBudget,
             'json_schema' => $this->jsonSchema,

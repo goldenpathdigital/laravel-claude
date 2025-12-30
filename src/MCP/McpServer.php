@@ -87,14 +87,62 @@ class McpServer
         return $this->config['name'] ?? null;
     }
 
+    /**
+     * Get the mcp_servers array entry (server definition only).
+     */
     public function toArray(): array
     {
-        $result = $this->config;
+        // Return only server config, not tool_configuration
+        // Tool configuration is now handled via mcp_toolset in the tools array
+        return $this->config;
+    }
 
+    /**
+     * Get the mcp_toolset entry for the tools array.
+     *
+     * @return array The mcp_toolset configuration
+     */
+    public function toToolsetArray(): array
+    {
+        $toolset = [
+            'type' => 'mcp_toolset',
+            'mcp_server_name' => $this->config['name'] ?? '',
+        ];
+
+        // Convert old tool_configuration format to new mcp_toolset format
         if ($this->toolConfig !== null) {
-            $result['tool_configuration'] = $this->toolConfig;
+            $defaultConfig = ['enabled' => $this->toolConfig['enabled'] ?? true];
+
+            // Handle allowed_tools by disabling all others (using default_config)
+            if (isset($this->toolConfig['allowed_tools'])) {
+                // Set default to disabled, then enable specific tools
+                $defaultConfig['enabled'] = false;
+                $toolset['default_config'] = $defaultConfig;
+
+                $configs = [];
+                foreach ($this->toolConfig['allowed_tools'] as $toolName) {
+                    $configs[$toolName] = ['enabled' => true];
+                }
+                if (! empty($configs)) {
+                    $toolset['configs'] = $configs;
+                }
+            } elseif (isset($this->toolConfig['denied_tools'])) {
+                // Set default to enabled, then disable specific tools
+                $defaultConfig['enabled'] = true;
+                $toolset['default_config'] = $defaultConfig;
+
+                $configs = [];
+                foreach ($this->toolConfig['denied_tools'] as $toolName) {
+                    $configs[$toolName] = ['enabled' => false];
+                }
+                if (! empty($configs)) {
+                    $toolset['configs'] = $configs;
+                }
+            } else {
+                $toolset['default_config'] = $defaultConfig;
+            }
         }
 
-        return $result;
+        return $toolset;
     }
 }

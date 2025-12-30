@@ -38,6 +38,8 @@ class ClaudeManager implements ClaudeClientInterface
     {
         $client = new Client(
             apiKey: $this->config['api_key'] ?? null,
+            authToken: $this->config['auth_token'] ?? null,
+            baseUrl: $this->config['base_url'] ?? null,
         );
 
         $this->applyConfigToClient($client);
