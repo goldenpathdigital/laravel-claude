@@ -40,9 +40,20 @@ test('converts to array with cache control', function () {
     ]);
 });
 
-test('fluent interface returns self', function () {
-    $cached = CachedContent::make('Test');
+test('cache method returns new immutable instance', function () {
+    $original = CachedContent::make('Test');
+    $cached = $original->cache('ephemeral');
 
-    expect($cached->cache('ephemeral'))->toBe($cached);
-    expect($cached->ephemeral())->toBe($cached);
+    expect($cached)->not->toBe($original);
+    expect($cached)->toBeInstanceOf(CachedContent::class);
+    expect($cached->getCacheType())->toBe('ephemeral');
+    expect($original->getCacheType())->toBe('ephemeral');
+});
+
+test('ephemeral method returns new immutable instance', function () {
+    $original = CachedContent::make('Test');
+    $cached = $original->ephemeral();
+
+    expect($cached)->not->toBe($original);
+    expect($cached)->toBeInstanceOf(CachedContent::class);
 });

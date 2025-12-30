@@ -25,6 +25,12 @@ test('extended thinking adds thinking config to payload', function () {
     expect($array['thinking_budget'])->toBe(10000);
 });
 
+test('extended thinking rejects budget below 1024', function () {
+    $builder = new ConversationBuilder($this->mockClient);
+
+    $builder->extendedThinking(budgetTokens: 500);
+})->throws(InvalidArgumentException::class, 'Extended thinking budget must be at least 1024 tokens');
+
 test('system accepts CachedContent', function () {
     $builder = new ConversationBuilder($this->mockClient);
 

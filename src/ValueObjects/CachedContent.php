@@ -22,16 +22,15 @@ class CachedContent
 
     public function cache(string $type = 'ephemeral'): self
     {
-        $this->type = $type;
+        $clone = clone $this;
+        $clone->type = $type;
 
-        return $this;
+        return $clone;
     }
 
     public function ephemeral(): self
     {
-        $this->type = 'ephemeral';
-
-        return $this;
+        return $this->cache('ephemeral');
     }
 
     public function getContent(): string

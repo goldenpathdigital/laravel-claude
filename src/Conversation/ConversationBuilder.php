@@ -78,6 +78,12 @@ class ConversationBuilder
 
     public function extendedThinking(int $budgetTokens): self
     {
+        if ($budgetTokens < 1024) {
+            throw new \InvalidArgumentException(
+                'Extended thinking budget must be at least 1024 tokens'
+            );
+        }
+
         $this->thinkingBudget = $budgetTokens;
 
         return $this;

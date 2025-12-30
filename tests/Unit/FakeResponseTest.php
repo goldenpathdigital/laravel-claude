@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Anthropic\Messages\ToolUseBlock;
 use GoldenPathDigital\Claude\Testing\FakeResponse;
 
 test('creates fake text response', function () {
@@ -20,6 +21,10 @@ test('creates fake tool use response', function () {
 
     $message = $response->toMessage();
     expect($message->stop_reason)->toBe('tool_use');
+    expect($message->content)->toHaveCount(1);
+    expect($message->content[0])->toBeInstanceOf(ToolUseBlock::class);
+    expect($message->content[0]->name)->toBe('get_weather');
+    expect($message->content[0]->input)->toBe(['location' => 'Paris']);
 });
 
 test('customizes response properties', function () {

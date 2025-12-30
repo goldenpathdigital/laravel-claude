@@ -6,6 +6,7 @@ namespace GoldenPathDigital\Claude\Testing;
 
 use Anthropic\Messages\Message;
 use Anthropic\Messages\TextBlock;
+use Anthropic\Messages\ToolUseBlock;
 use Anthropic\Messages\Usage;
 
 use function random_bytes;
@@ -87,6 +88,15 @@ class FakeResponse
                 text: $this->text,
             );
             $content[] = $textBlock;
+        }
+
+        if ($this->toolName !== null) {
+            $toolBlock = ToolUseBlock::with(
+                id: 'toolu_fake_'.bin2hex(random_bytes(8)),
+                input: $this->toolInput ?? [],
+                name: $this->toolName,
+            );
+            $content[] = $toolBlock;
         }
 
         return Message::with(
