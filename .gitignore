@@ -1,6 +1,7 @@
 # System
 .notes/
 .DS_Store
+CODE_REVIEW_ISSUES.md
 
 # IDE
 .idea/

@@ -409,7 +409,8 @@ class ConversationBuilder
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
+     *
      * @throws ApiException
      * @throws RateLimitException
      * @throws ConfigurationException
