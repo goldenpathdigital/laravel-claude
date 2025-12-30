@@ -7,6 +7,8 @@ namespace GoldenPathDigital\Claude\Tools;
 use Anthropic\Messages\Tool as SdkTool;
 use Anthropic\Messages\Tool\InputSchema;
 use Closure;
+use GoldenPathDigital\Claude\Exceptions\ToolExecutionException;
+use GoldenPathDigital\Claude\Exceptions\ValidationException;
 
 class Tool
 {
@@ -19,6 +21,10 @@ class Tool
     protected array $required = [];
 
     protected ?Closure $handler = null;
+
+    protected ?Closure $validator = null;
+
+    protected ?float $timeout = null;
 
     public static function make(string $name): self
     {
@@ -75,13 +81,78 @@ class Tool
         return $this;
     }
 
+    public function validator(Closure $validator): self
+    {
+        $this->validator = $validator;
+
+        return $this;
+    }
+
+    public function timeout(float $seconds): self
+    {
+        if ($seconds <= 0) {
+            throw new ValidationException('timeout', $seconds, 'Tool timeout must be positive');
+        }
+
+        $this->timeout = $seconds;
+
+        return $this;
+    }
+
+    public function getTimeout(): ?float
+    {
+        return $this->timeout;
+    }
+
     public function execute(array $input): mixed
     {
         if ($this->handler === null) {
             throw new \RuntimeException("No handler defined for tool '{$this->name}'");
         }
 
-        return ($this->handler)($input);
+        $this->validateInput($input);
+
+        try {
+            return ($this->handler)($input);
+        } catch (ToolExecutionException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            throw new ToolExecutionException(
+                $this->name,
+                $input,
+                $e->getMessage(),
+                $e
+            );
+        }
+    }
+
+    protected function validateInput(array $input): void
+    {
+        foreach ($this->required as $requiredParam) {
+            if (! array_key_exists($requiredParam, $input)) {
+                throw new ValidationException(
+                    $requiredParam,
+                    null,
+                    "Required parameter '{$requiredParam}' is missing for tool '{$this->name}'"
+                );
+            }
+        }
+
+        if ($this->validator !== null) {
+            $result = ($this->validator)($input);
+
+            if ($result === false) {
+                throw new ValidationException(
+                    'input',
+                    $input,
+                    "Input validation failed for tool '{$this->name}'"
+                );
+            }
+
+            if (is_string($result)) {
+                throw new ValidationException('input', $input, $result);
+            }
+        }
     }
 
     public function getName(): string

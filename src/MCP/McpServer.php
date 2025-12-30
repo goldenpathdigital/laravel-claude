@@ -167,4 +167,19 @@ class McpServer
 
         return $toolset;
     }
+
+    /** @return array<string, mixed> */
+    public function __debugInfo(): array
+    {
+        $info = $this->config;
+
+        if (isset($info['authorization_token'])) {
+            $info['authorization_token'] = '[REDACTED]';
+        }
+
+        return [
+            'config' => $info,
+            'toolConfig' => $this->toolConfig,
+        ];
+    }
 }

@@ -8,6 +8,7 @@ use Anthropic\Messages\Usage;
 use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Contracts\ConversationCallback;
 use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
+use GoldenPathDigital\Claude\Conversation\PayloadBuilder;
 use GoldenPathDigital\Claude\Jobs\ProcessConversation;
 use GoldenPathDigital\Claude\MCP\McpServer;
 use GoldenPathDigital\Claude\Tools\Tool;
@@ -86,13 +87,8 @@ test('builds basic payload correctly', function () {
         ->user('Hello')
         ->maxTokens(1024);
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['model'])->toBe('claude-sonnet-4-5-20250929');
     expect($payload['max_tokens'])->toBe(1024);
@@ -106,13 +102,8 @@ test('builds payload with extended thinking', function () {
         ->user('Complex question')
         ->extendedThinking(budgetTokens: 5000);
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['thinking'])->toBe([
         'type' => 'enabled',
@@ -127,13 +118,8 @@ test('builds payload with cached content', function () {
         ->system($cached)
         ->user('Question');
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['system'])->toBeArray();
     expect($payload['system'][0]['type'])->toBe('text');
@@ -150,13 +136,8 @@ test('builds payload with tools', function () {
         ->user('Get data for id 123')
         ->tools([$tool]);
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['tools'])->toHaveCount(1);
     expect($payload['tools'][0]['name'])->toBe('get_data');
@@ -175,31 +156,14 @@ test('builds payload with json schema', function () {
         ->user('Extract name')
         ->schema($schema, 'extract_data');
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
-
-    $schemaName = $conversation->toArray()['json_schema_name'];
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['tools'])->toContain([
-        'name' => $schemaName,
+        'name' => 'extract_data',
         'description' => 'Respond with structured data matching the provided schema',
         'input_schema' => $schema,
     ]);
-    expect($payload['tool_choice'])->toBe([
-        'type' => 'tool',
-        'name' => $schemaName,
-    ]);
-
-    expect($payload['tool_choice'])->toBe([
-        'type' => 'tool',
-        'name' => 'extract_data',
-    ]);
-
     expect($payload['tool_choice'])->toBe([
         'type' => 'tool',
         'name' => 'extract_data',
@@ -216,13 +180,8 @@ test('builds payload with mcp servers', function () {
         ->user('Use the tool')
         ->mcp([$server]);
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['mcp_servers'])->toHaveCount(1);
     expect($payload['mcp_servers'][0]['url'])->toBe('https://mcp.example.com/api');
@@ -234,13 +193,8 @@ test('builds payload with stop sequences', function () {
         ->user('Write until you see END')
         ->stopSequences(['END', '---']);
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['stop_sequences'])->toBe(['END', '---']);
 });
@@ -251,13 +205,8 @@ test('builds payload with top_k', function () {
         ->user('Test')
         ->topK(40);
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['top_k'])->toBe(40);
 });
@@ -268,13 +217,8 @@ test('builds payload with top_p', function () {
         ->user('Test')
         ->topP(0.9);
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['top_p'])->toBe(0.9);
 });
@@ -285,13 +229,8 @@ test('builds payload with metadata', function () {
         ->user('Test')
         ->metadata(['user_id' => 'user_123']);
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['metadata'])->toBe(['user_id' => 'user_123']);
 });
@@ -302,13 +241,8 @@ test('builds payload with service tier', function () {
         ->user('Test')
         ->serviceTier('auto');
 
-    $job = new ProcessConversation($conversation, TestCallback::class);
-
-    $reflection = new ReflectionClass($job);
-    $method = $reflection->getMethod('buildPayload');
-    $method->setAccessible(true);
-
-    $payload = $method->invoke($job);
+    $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+    $payload = $payloadBuilder->build();
 
     expect($payload['service_tier'])->toBe('auto');
 });

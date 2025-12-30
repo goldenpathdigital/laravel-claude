@@ -15,6 +15,7 @@ use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
 use GoldenPathDigital\Claude\Exceptions\ConfigurationException;
 use GoldenPathDigital\Claude\Testing\FakeResponse;
+use GoldenPathDigital\Claude\Testing\FakeScope;
 use GoldenPathDigital\Claude\Testing\PendingClaudeFake;
 use GoldenPathDigital\Claude\ValueObjects\TokenCost;
 
@@ -261,5 +262,22 @@ class ClaudeManager implements ClaudeClientInterface
     public static function getFake(): ?PendingClaudeFake
     {
         return static::$fake;
+    }
+
+    /** @param array<FakeResponse|string> $responses */
+    public static function fakeScoped(array $responses = []): FakeScope
+    {
+        $fake = static::fake($responses);
+
+        return new FakeScope($fake);
+    }
+
+    public static function isValidModel(string $model, bool $strict = false): bool
+    {
+        if (! $strict) {
+            return true;
+        }
+
+        return self::isKnownModel($model);
     }
 }

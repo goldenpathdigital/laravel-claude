@@ -6,6 +6,7 @@ use Anthropic\Messages\Message;
 use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Contracts\ConversationCallback;
 use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
+use GoldenPathDigital\Claude\Conversation\PayloadBuilder;
 use GoldenPathDigital\Claude\Jobs\ProcessConversation;
 
 beforeEach(function () {
@@ -105,68 +106,48 @@ describe('ProcessConversation Job Configuration', function () {
     });
 });
 
-describe('ProcessConversation Payload Building', function () {
-    test('buildPayload includes model from config', function () {
+describe('ProcessConversation Payload Building via PayloadBuilder', function () {
+    test('PayloadBuilder includes model from config', function () {
         $conversation = new ConversationBuilder($this->mockClient);
         $conversation->user('Test message');
 
-        $job = new ProcessConversation($conversation, JobTestCallback::class);
-
-        $reflection = new ReflectionClass($job);
-        $method = $reflection->getMethod('buildPayload');
-        $method->setAccessible(true);
-
-        $payload = $method->invoke($job);
+        $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+        $payload = $payloadBuilder->build();
 
         expect($payload['model'])->toBe('claude-sonnet-4-5-20250929');
         expect($payload['messages'])->toHaveCount(1);
     });
 
-    test('buildPayload includes system when set', function () {
+    test('PayloadBuilder includes system when set', function () {
         $conversation = new ConversationBuilder($this->mockClient);
         $conversation
             ->system('You are helpful')
             ->user('Test');
 
-        $job = new ProcessConversation($conversation, JobTestCallback::class);
-
-        $reflection = new ReflectionClass($job);
-        $method = $reflection->getMethod('buildPayload');
-        $method->setAccessible(true);
-
-        $payload = $method->invoke($job);
+        $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+        $payload = $payloadBuilder->build();
 
         expect($payload['system'])->toBe('You are helpful');
     });
 
-    test('buildPayload includes temperature when set', function () {
+    test('PayloadBuilder includes temperature when set', function () {
         $conversation = new ConversationBuilder($this->mockClient);
         $conversation
             ->user('Test')
             ->temperature(0.5);
 
-        $job = new ProcessConversation($conversation, JobTestCallback::class);
-
-        $reflection = new ReflectionClass($job);
-        $method = $reflection->getMethod('buildPayload');
-        $method->setAccessible(true);
-
-        $payload = $method->invoke($job);
+        $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+        $payload = $payloadBuilder->build();
 
         expect($payload['temperature'])->toBe(0.5);
     });
 
-    test('buildPayload excludes optional fields when not set', function () {
+    test('PayloadBuilder excludes optional fields when not set', function () {
         $conversation = new ConversationBuilder($this->mockClient);
         $conversation->user('Test');
 
-        $job = new ProcessConversation($conversation, JobTestCallback::class);
-
-        $reflection = new ReflectionClass($job);
-        $method = $reflection->getMethod('buildPayload');
-        $method->setAccessible(true);
-
-        $payload = $method->invoke($job);
+        $payloadBuilder = PayloadBuilder::fromConfig($conversation->toArray());
+        $payload = $payloadBuilder->build();
 
         expect($payload)->not->toHaveKey('temperature');
         expect($payload)->not->toHaveKey('system');

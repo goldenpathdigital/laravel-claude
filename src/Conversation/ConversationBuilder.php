@@ -5,21 +5,18 @@ declare(strict_types=1);
 namespace GoldenPathDigital\Claude\Conversation;
 
 use Anthropic\Messages\Message;
-use Anthropic\Messages\RawContentBlockDeltaEvent;
-use Anthropic\Messages\RawMessageDeltaEvent;
-use Anthropic\Messages\RawMessageStartEvent;
 use Anthropic\Messages\TextBlock;
-use Anthropic\Messages\ToolUseBlock;
 use Closure;
 use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
-use GoldenPathDigital\Claude\Events\StreamChunk;
 use GoldenPathDigital\Claude\Events\StreamComplete;
-use GoldenPathDigital\Claude\Exceptions\StreamingException;
+use GoldenPathDigital\Claude\Exceptions\ValidationException;
 use GoldenPathDigital\Claude\MCP\McpServer;
+use GoldenPathDigital\Claude\Streaming\StreamHandler;
 use GoldenPathDigital\Claude\Tools\Tool;
+use GoldenPathDigital\Claude\Tools\ToolExecutor;
 use GoldenPathDigital\Claude\ValueObjects\CachedContent;
-use Illuminate\Support\Facades\Log;
-use Throwable;
+use Illuminate\Contracts\Events\Dispatcher;
+use Psr\Log\LoggerInterface;
 
 class ConversationBuilder
 {
@@ -65,10 +62,28 @@ class ConversationBuilder
 
     protected ?float $timeout = null;
 
+    protected ?LoggerInterface $logger = null;
+
+    protected ?Dispatcher $eventDispatcher = null;
+
     public function __construct(ClaudeClientInterface $client)
     {
         $this->client = $client;
         $this->model = $client->config('default_model');
+    }
+
+    public function withLogger(LoggerInterface $logger): self
+    {
+        $this->logger = $logger;
+
+        return $this;
+    }
+
+    public function withEventDispatcher(Dispatcher $dispatcher): self
+    {
+        $this->eventDispatcher = $dispatcher;
+
+        return $this;
     }
 
     public function model(string $model): self
@@ -88,7 +103,9 @@ class ConversationBuilder
     public function extendedThinking(int $budgetTokens): self
     {
         if ($budgetTokens < 1024) {
-            throw new \InvalidArgumentException(
+            throw new ValidationException(
+                'budgetTokens',
+                $budgetTokens,
                 'Extended thinking budget must be at least 1024 tokens'
             );
         }
@@ -214,7 +231,7 @@ class ConversationBuilder
     public function maxTokens(int $tokens): self
     {
         if ($tokens < 1) {
-            throw new \InvalidArgumentException('maxTokens must be at least 1');
+            throw new ValidationException('maxTokens', $tokens, 'maxTokens must be at least 1');
         }
 
         $this->maxTokens = $tokens;
@@ -225,7 +242,9 @@ class ConversationBuilder
     public function temperature(float $temperature): self
     {
         if ($temperature < 0.0 || $temperature > 1.0) {
-            throw new \InvalidArgumentException(
+            throw new ValidationException(
+                'temperature',
+                $temperature,
                 'Temperature must be between 0.0 and 1.0'
             );
         }
@@ -246,7 +265,7 @@ class ConversationBuilder
     public function topK(int $k): self
     {
         if ($k < 1) {
-            throw new \InvalidArgumentException('topK must be at least 1');
+            throw new ValidationException('topK', $k, 'topK must be at least 1');
         }
 
         $this->topK = $k;
@@ -257,9 +276,7 @@ class ConversationBuilder
     public function topP(float $p): self
     {
         if ($p < 0.0 || $p > 1.0) {
-            throw new \InvalidArgumentException(
-                'topP must be between 0.0 and 1.0'
-            );
+            throw new ValidationException('topP', $p, 'topP must be between 0.0 and 1.0');
         }
 
         $this->topP = $p;
@@ -285,7 +302,7 @@ class ConversationBuilder
     public function timeout(float $seconds): self
     {
         if ($seconds <= 0) {
-            throw new \InvalidArgumentException('timeout must be positive');
+            throw new ValidationException('timeout', $seconds, 'timeout must be positive');
         }
 
         $this->timeout = $seconds;
@@ -314,7 +331,11 @@ class ConversationBuilder
                 return McpServer::fromConfig($server, $configuredServers[$server]);
             }
 
-            throw new \InvalidArgumentException("MCP server '{$server}' not found in config");
+            throw new ValidationException(
+                'mcp_server',
+                $server,
+                "MCP server '{$server}' not found in config"
+            );
         }, $servers);
 
         return $this;
@@ -323,89 +344,12 @@ class ConversationBuilder
     public function maxSteps(int $steps): self
     {
         if ($steps < 1) {
-            throw new \InvalidArgumentException('maxSteps must be at least 1');
+            throw new ValidationException('maxSteps', $steps, 'maxSteps must be at least 1');
         }
 
         $this->maxSteps = $steps;
 
         return $this;
-    }
-
-    /** @return array<string, mixed> */
-    protected function buildPayload(): array
-    {
-        $payload = [
-            'model' => $this->model,
-            'max_tokens' => $this->maxTokens,
-            'messages' => $this->messages,
-        ];
-
-        if ($this->system !== null) {
-            if ($this->system instanceof CachedContent) {
-                $payload['system'] = [$this->system->toArray()];
-            } else {
-                $payload['system'] = $this->system;
-            }
-        }
-
-        if ($this->temperature !== null) {
-            $payload['temperature'] = $this->temperature;
-        }
-
-        if (! empty($this->stopSequences)) {
-            $payload['stop_sequences'] = $this->stopSequences;
-        }
-
-        if ($this->topK !== null) {
-            $payload['top_k'] = $this->topK;
-        }
-
-        if ($this->topP !== null) {
-            $payload['top_p'] = $this->topP;
-        }
-
-        if ($this->metadata !== null) {
-            $payload['metadata'] = $this->metadata;
-        }
-
-        if ($this->serviceTier !== null) {
-            $payload['service_tier'] = $this->serviceTier;
-        }
-
-        if ($this->thinkingBudget !== null) {
-            $payload['thinking'] = [
-                'type' => 'enabled',
-                'budget_tokens' => $this->thinkingBudget,
-            ];
-        }
-
-        $tools = array_map(fn (Tool $tool) => $tool->toArray(), $this->tools);
-
-        if ($this->jsonSchema !== null) {
-            $tools[] = [
-                'name' => $this->jsonSchemaName,
-                'description' => 'Respond with structured data matching the provided schema',
-                'input_schema' => $this->jsonSchema,
-            ];
-            $payload['tool_choice'] = [
-                'type' => 'tool',
-                'name' => $this->jsonSchemaName,
-            ];
-        }
-
-        if (! empty($this->mcpServers)) {
-            $payload['mcp_servers'] = array_map(fn (McpServer $server) => $server->toArray(), $this->mcpServers);
-
-            foreach ($this->mcpServers as $server) {
-                $tools[] = $server->toToolsetArray();
-            }
-        }
-
-        if (! empty($tools)) {
-            $payload['tools'] = $tools;
-        }
-
-        return $payload;
     }
 
     public function send(): Message
@@ -414,7 +358,9 @@ class ConversationBuilder
             throw new \RuntimeException('maxSteps must be at least 1');
         }
 
-        $payload = $this->buildPayload();
+        $payloadBuilder = new PayloadBuilder($this->toArray());
+        $payload = $payloadBuilder->build();
+        $toolExecutor = $this->createToolExecutor();
         $response = null;
 
         for ($step = 0; $step < $this->maxSteps; $step++) {
@@ -426,7 +372,13 @@ class ConversationBuilder
                 return $response;
             }
 
-            $toolResults = $this->executeTools($response);
+            if (! $toolExecutor->hasExecutableTools($response)) {
+                $this->appendAssistantResponse($response);
+
+                return $response;
+            }
+
+            $toolResults = $toolExecutor->executeToolsFromResponse($response);
 
             if (empty($toolResults)) {
                 $this->appendAssistantResponse($response);
@@ -434,189 +386,39 @@ class ConversationBuilder
                 return $response;
             }
 
-            $this->appendToolInteraction($response, $toolResults);
-            $payload['messages'] = $this->messages;
+            $interactionMessages = $toolExecutor->buildToolInteractionMessages($response, $toolResults);
+            foreach ($interactionMessages as $msg) {
+                $this->messages[] = $msg;
+            }
+
+            $payloadBuilder->setMessages($this->messages);
+            $payload = $payloadBuilder->build();
         }
 
         return $response;
     }
 
-    /** @return array<int, array<string, mixed>> */
-    protected function executeTools(Message $response): array
+    protected function createToolExecutor(): ToolExecutor
     {
-        $results = [];
-
-        foreach ($response->content as $block) {
-            if (! $block instanceof ToolUseBlock) {
-                continue;
-            }
-
-            $tool = $this->findTool($block->name);
-
-            if ($tool === null || ! $tool->hasHandler()) {
-                $this->logToolError($block->name, null, 'Tool not found or has no handler');
-                $results[] = [
-                    'type' => 'tool_result',
-                    'tool_use_id' => $block->id,
-                    'content' => "Tool '{$block->name}' not found or has no handler",
-                    'is_error' => true,
-                ];
-
-                continue;
-            }
-
-            try {
-                $result = $tool->execute($block->input);
-                $results[] = [
-                    'type' => 'tool_result',
-                    'tool_use_id' => $block->id,
-                    'content' => is_string($result) ? $result : json_encode($result),
-                ];
-            } catch (Throwable $e) {
-                $this->logToolError($block->name, $e);
-                $results[] = [
-                    'type' => 'tool_result',
-                    'tool_use_id' => $block->id,
-                    'content' => "Error: {$e->getMessage()}",
-                    'is_error' => true,
-                ];
-            }
-        }
-
-        return $results;
+        return new ToolExecutor($this->tools, $this->logger, $this->timeout);
     }
 
-    protected function logToolError(string $toolName, ?Throwable $exception, ?string $message = null): void
+    protected function createStreamHandler(): StreamHandler
     {
-        if (! function_exists('logger')) {
-            return;
-        }
-
-        $context = ['tool' => $toolName];
-
-        if ($exception !== null) {
-            $context['exception'] = $exception::class;
-            $context['message'] = $exception->getMessage();
-            $context['trace'] = $exception->getTraceAsString();
-        }
-
-        Log::warning($message ?? "Tool execution failed: {$toolName}", $context);
+        return new StreamHandler($this->eventDispatcher);
     }
 
-    protected function findTool(string $name): ?Tool
-    {
-        foreach ($this->tools as $tool) {
-            if ($tool->getName() === $name) {
-                return $tool;
-            }
-        }
-
-        return null;
-    }
-
-    /** @param array<int, array<string, mixed>> $toolResults */
-    protected function appendToolInteraction(Message $response, array $toolResults): void
-    {
-        $assistantContent = [];
-        foreach ($response->content as $block) {
-            if ($block instanceof TextBlock) {
-                $assistantContent[] = [
-                    'type' => 'text',
-                    'text' => $block->text,
-                ];
-            } elseif ($block instanceof ToolUseBlock) {
-                $assistantContent[] = [
-                    'type' => 'tool_use',
-                    'id' => $block->id,
-                    'name' => $block->name,
-                    'input' => $block->input,
-                ];
-            }
-        }
-
-        $this->messages[] = [
-            'role' => 'assistant',
-            'content' => $assistantContent,
-        ];
-
-        $this->messages[] = [
-            'role' => 'user',
-            'content' => $toolResults,
-        ];
-    }
-
-    /** @param Closure(StreamChunk): void $callback */
     public function stream(Closure $callback): StreamComplete
     {
-        $payload = $this->buildPayload();
+        $payloadBuilder = new PayloadBuilder($this->toArray());
+        $payload = $payloadBuilder->build();
 
-        try {
-            $stream = $this->client->messages()->createStream($payload);
-        } catch (Throwable $e) {
-            throw new StreamingException(
-                "Failed to create stream: {$e->getMessage()}",
-                previous: $e
-            );
-        }
+        $streamHandler = $this->createStreamHandler();
+        $complete = $streamHandler->stream($this->client->messages(), $payload, $callback);
 
-        $fullText = '';
-        $chunkIndex = 0;
-        $message = null;
-        $stopReason = null;
-
-        try {
-            foreach ($stream as $event) {
-                if ($event instanceof RawMessageStartEvent) {
-                    $message = $event->message;
-                }
-
-                if ($event instanceof RawContentBlockDeltaEvent) {
-                    $delta = $event->delta;
-
-                    if (isset($delta->text)) {
-                        $text = $delta->text;
-                        $fullText .= $text;
-
-                        $chunk = new StreamChunk(
-                            text: $text,
-                            index: $chunkIndex++,
-                            type: $delta->type ?? 'text_delta',
-                        );
-
-                        $callback($chunk);
-
-                        if (function_exists('event')) {
-                            event($chunk);
-                        }
-                    }
-                }
-
-                if ($event instanceof RawMessageDeltaEvent) {
-                    $stopReason = $event->delta->stop_reason ?? null;
-                }
-            }
-        } catch (Throwable $e) {
-            throw new StreamingException(
-                "Stream interrupted: {$e->getMessage()}",
-                previous: $e
-            );
-        }
-
-        if ($fullText !== '') {
-            $this->messages[] = [
-                'role' => 'assistant',
-                'content' => $fullText,
-            ];
-        }
-
-        $complete = new StreamComplete(
-            message: $message,
-            fullText: $fullText,
-            stopReason: $stopReason,
-        );
-
-        if (function_exists('event')) {
-            event($complete);
+        $assistantMessage = $streamHandler->getAssistantContent($complete->fullText);
+        if ($assistantMessage !== null) {
+            $this->messages[] = $assistantMessage;
         }
 
         return $complete;
@@ -671,7 +473,7 @@ class ConversationBuilder
     public static function extractStructuredOutput(Message $response): ?array
     {
         foreach ($response->content as $block) {
-            if ($block instanceof ToolUseBlock) {
+            if ($block instanceof \Anthropic\Messages\ToolUseBlock) {
                 return $block->input;
             }
         }
