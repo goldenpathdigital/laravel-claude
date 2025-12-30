@@ -6,7 +6,6 @@ use Anthropic\Messages\Message;
 use Anthropic\Messages\TextBlock;
 use Anthropic\Messages\ToolUseBlock;
 use Anthropic\Messages\Usage;
-use GoldenPathDigital\Claude\Exceptions\ValidationException;
 use GoldenPathDigital\Claude\Tools\Tool;
 use GoldenPathDigital\Claude\Tools\ToolExecutor;
 
@@ -19,13 +18,13 @@ function createToolUseMessage(string $toolName, array $input = [], string $text 
     }
 
     $content[] = ToolUseBlock::with(
-        id: 'toolu_test_' . bin2hex(random_bytes(4)),
+        id: 'toolu_test_'.bin2hex(random_bytes(4)),
         input: $input,
         name: $toolName
     );
 
     return Message::with(
-        id: 'msg_test_' . bin2hex(random_bytes(4)),
+        id: 'msg_test_'.bin2hex(random_bytes(4)),
         content: $content,
         model: 'claude-sonnet-4-5-20250929',
         stop_reason: 'tool_use',
@@ -102,7 +101,7 @@ test('catches handler exceptions and returns error', function () {
 
 test('builds tool interaction messages correctly', function () {
     $tool = Tool::make('greet')
-        ->handler(fn ($input) => 'Hello, ' . $input['name']);
+        ->handler(fn ($input) => 'Hello, '.$input['name']);
 
     $executor = new ToolExecutor([$tool]);
     $message = createToolUseMessage('greet', ['name' => 'World'], 'Let me greet you');
@@ -157,7 +156,7 @@ test('tool with validator validates input', function () {
 
             return true;
         })
-        ->handler(fn ($input) => 'Age: ' . $input['age']);
+        ->handler(fn ($input) => 'Age: '.$input['age']);
 
     $executor = new ToolExecutor([$tool]);
     $message = createToolUseMessage('validated_tool', ['age' => -5]);
@@ -171,7 +170,7 @@ test('tool with validator validates input', function () {
 test('tool validates required parameters', function () {
     $tool = Tool::make('required_params')
         ->parameter('name', 'string', required: true)
-        ->handler(fn ($input) => 'Hello ' . $input['name']);
+        ->handler(fn ($input) => 'Hello '.$input['name']);
 
     $executor = new ToolExecutor([$tool]);
     $message = createToolUseMessage('required_params', []);

@@ -44,7 +44,7 @@ class ClaudeManager implements ClaudeClientInterface
     ];
 
     /**
-     * @param array<string, mixed> $config
+     * @param  array<string, mixed>  $config
      *
      * @throws ConfigurationException
      */

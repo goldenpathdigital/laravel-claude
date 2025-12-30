@@ -6,6 +6,4 @@ namespace GoldenPathDigital\Claude\Exceptions;
 
 use RuntimeException;
 
-class StreamingException extends RuntimeException
-{
-}
+class StreamingException extends RuntimeException {}

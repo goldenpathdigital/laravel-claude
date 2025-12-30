@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace GoldenPathDigital\Claude\Streaming;
 
-use Anthropic\Messages\Message;
 use Anthropic\Messages\RawContentBlockDeltaEvent;
 use Anthropic\Messages\RawMessageDeltaEvent;
 use Anthropic\Messages\RawMessageStartEvent;

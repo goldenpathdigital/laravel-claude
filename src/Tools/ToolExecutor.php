@@ -7,7 +7,6 @@ namespace GoldenPathDigital\Claude\Tools;
 use Anthropic\Messages\Message;
 use Anthropic\Messages\TextBlock;
 use Anthropic\Messages\ToolUseBlock;
-use Closure;
 use GoldenPathDigital\Claude\Exceptions\ToolExecutionException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -26,7 +25,7 @@ class ToolExecutor
     public function __construct(array $tools = [], ?LoggerInterface $logger = null, ?float $defaultTimeout = null)
     {
         $this->tools = $tools;
-        $this->logger = $logger ?? new NullLogger();
+        $this->logger = $logger ?? new NullLogger;
         $this->defaultTimeout = $defaultTimeout;
     }
 

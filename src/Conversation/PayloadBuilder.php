@@ -10,7 +10,7 @@ use GoldenPathDigital\Claude\ValueObjects\CachedContent;
 
 /**
  * Builds API payloads for Claude Messages API requests.
- * 
+ *
  * Single source of truth for payload construction, eliminating duplication
  * between ConversationBuilder and ProcessConversation job.
  */
@@ -27,8 +27,8 @@ class PayloadBuilder
 
     /**
      * Create a PayloadBuilder from a ConversationBuilder's configuration.
-     * 
-     * @param array<string, mixed> $conversationConfig Output from ConversationBuilder::toArray()
+     *
+     * @param  array<string, mixed>  $conversationConfig  Output from ConversationBuilder::toArray()
      */
     public static function fromConfig(array $conversationConfig): self
     {
@@ -37,7 +37,7 @@ class PayloadBuilder
 
     /**
      * Build the complete API payload.
-     * 
+     *
      * @return array<string, mixed>
      */
     public function build(): array
@@ -55,7 +55,7 @@ class PayloadBuilder
 
     /**
      * Build the base payload with required fields.
-     * 
+     *
      * @return array<string, mixed>
      */
     protected function buildBasePayload(): array
@@ -69,8 +69,8 @@ class PayloadBuilder
 
     /**
      * Add system prompt to payload.
-     * 
-     * @param array<string, mixed> $payload
+     *
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     protected function addSystemPrompt(array $payload): array
@@ -96,8 +96,8 @@ class PayloadBuilder
 
     /**
      * Add sampling parameters (temperature, top_k, top_p, stop_sequences).
-     * 
-     * @param array<string, mixed> $payload
+     *
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     protected function addSamplingParameters(array $payload): array
@@ -123,8 +123,8 @@ class PayloadBuilder
 
     /**
      * Add metadata and service tier.
-     * 
-     * @param array<string, mixed> $payload
+     *
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     protected function addMetadata(array $payload): array
@@ -142,8 +142,8 @@ class PayloadBuilder
 
     /**
      * Add extended thinking configuration.
-     * 
-     * @param array<string, mixed> $payload
+     *
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     protected function addThinking(array $payload): array
@@ -162,8 +162,8 @@ class PayloadBuilder
 
     /**
      * Add tools and JSON schema to payload.
-     * 
-     * @param array<string, mixed> $payload
+     *
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     protected function addTools(array $payload): array
@@ -193,8 +193,8 @@ class PayloadBuilder
 
     /**
      * Add MCP servers and their toolsets to payload.
-     * 
-     * @param array<string, mixed> $payload
+     *
+     * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
     protected function addMcpServers(array $payload): array
@@ -226,8 +226,8 @@ class PayloadBuilder
 
     /**
      * Normalize tools array - handles both Tool objects and raw arrays.
-     * 
-     * @param array<Tool|array<string, mixed>> $tools
+     *
+     * @param  array<Tool|array<string, mixed>>  $tools
      * @return array<array<string, mixed>>
      */
     protected function normalizeTools(array $tools): array
@@ -239,8 +239,8 @@ class PayloadBuilder
 
     /**
      * Update messages in the config (for tool loop iterations).
-     * 
-     * @param array<int, array<string, mixed>> $messages
+     *
+     * @param  array<int, array<string, mixed>>  $messages
      */
     public function setMessages(array $messages): self
     {
@@ -251,7 +251,7 @@ class PayloadBuilder
 
     /**
      * Get the current configuration.
-     * 
+     *
      * @return array<string, mixed>
      */
     public function getConfig(): array

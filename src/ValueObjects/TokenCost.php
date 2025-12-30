@@ -26,7 +26,7 @@ final class TokenCost
 
     public function formatted(string $currency = '$', int $decimals = 6): string
     {
-        return $currency . number_format($this->total(), $decimals);
+        return $currency.number_format($this->total(), $decimals);
     }
 
     /** @param array{input: float, output: float} $pricing */

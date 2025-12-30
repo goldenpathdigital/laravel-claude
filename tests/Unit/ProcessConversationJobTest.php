@@ -158,7 +158,7 @@ describe('ProcessConversation Payload Building via PayloadBuilder', function () 
 
 describe('ProcessConversation Callback Resolution', function () {
     test('resolveCallback creates callback instance via app container', function () {
-        app()->bind(JobTestCallback::class, fn () => new JobTestCallback());
+        app()->bind(JobTestCallback::class, fn () => new JobTestCallback);
 
         $conversation = new ConversationBuilder($this->mockClient);
         $conversation->user('Test');

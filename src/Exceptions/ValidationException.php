@@ -10,7 +10,6 @@ class ValidationException extends InvalidArgumentException
 {
     protected string $field;
 
-    /** @var mixed */
     protected mixed $invalidValue;
 
     public function __construct(string $field, mixed $value, string $message)

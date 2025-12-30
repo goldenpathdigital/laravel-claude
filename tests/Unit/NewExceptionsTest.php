@@ -80,13 +80,13 @@ describe('ApiException', function () {
 
 describe('RateLimitException', function () {
     test('extends ApiException', function () {
-        $exception = new RateLimitException();
+        $exception = new RateLimitException;
 
         expect($exception)->toBeInstanceOf(ApiException::class);
     });
 
     test('has default message', function () {
-        $exception = new RateLimitException();
+        $exception = new RateLimitException;
 
         expect($exception->getMessage())->toBe('Rate limit exceeded');
         expect($exception->getApiErrorType())->toBe('rate_limit_error');
@@ -99,7 +99,7 @@ describe('RateLimitException', function () {
     });
 
     test('handles null retry after', function () {
-        $exception = new RateLimitException();
+        $exception = new RateLimitException;
 
         expect($exception->getRetryAfterSeconds())->toBeNull();
     });
