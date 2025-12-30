@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GoldenPathDigital\Claude;
 
+use Anthropic\Beta\Messages\BetaMessageTokensCount;
 use Anthropic\Client;
 use Anthropic\RequestOptions;
 use Anthropic\Services\Beta\FilesService;
@@ -14,6 +15,7 @@ use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
 use GoldenPathDigital\Claude\Testing\FakeResponse;
 use GoldenPathDigital\Claude\Testing\PendingClaudeFake;
+use GoldenPathDigital\Claude\ValueObjects\TokenCost;
 use ReflectionClass;
 
 class ClaudeManager implements ClaudeClientInterface
@@ -22,12 +24,9 @@ class ClaudeManager implements ClaudeClientInterface
 
     protected array $config;
 
-    /**
-     * Static fake instance for tests. Not safe for long-running workers
-     * (e.g., Octane, Horizon) because the static state persists between jobs.
-     * Always call clearFake() when a test completes.
-     */
     protected static ?PendingClaudeFake $fake = null;
+
+    protected static bool $fakeAutoResetRegistered = false;
 
     public function __construct(array $config)
     {
@@ -96,9 +95,13 @@ class ClaudeManager implements ClaudeClientInterface
     protected function cloneClientOptions(Client $client): RequestOptions
     {
         $property = $this->clientOptionsProperty($client);
-
-        /** @var RequestOptions $options */
         $options = $property->getValue($client);
+
+        if (! $options instanceof RequestOptions) {
+            throw new \RuntimeException(
+                'Anthropic SDK internals changed: options is not RequestOptions. Upgrade laravel-claude.'
+            );
+        }
 
         return clone $options;
     }
@@ -115,13 +118,35 @@ class ClaudeManager implements ClaudeClientInterface
         $base = $class->getParentClass();
 
         if ($base === false) {
-            throw new \RuntimeException('Unable to access client options');
+            throw new \RuntimeException(
+                'Anthropic SDK internals changed: Client has no parent. Upgrade laravel-claude.'
+            );
+        }
+
+        if (! $base->hasProperty('options')) {
+            throw new \RuntimeException(
+                'Anthropic SDK internals changed: BaseClient has no options. Upgrade laravel-claude.'
+            );
         }
 
         $property = $base->getProperty('options');
-        $property->setAccessible(true);
+
+        try {
+            $property->setAccessible(true);
+        } catch (\ReflectionException $e) {
+            throw new \RuntimeException(
+                'Anthropic SDK internals changed: cannot access options. Upgrade laravel-claude.',
+                0,
+                $e
+            );
+        }
 
         return $property;
+    }
+
+    public function getClientOptions(): RequestOptions
+    {
+        return $this->cloneClientOptions($this->client);
     }
 
     public function client(): Client
@@ -149,9 +174,34 @@ class ClaudeManager implements ClaudeClientInterface
         return $this->client->beta->files;
     }
 
-    public function countTokens(array $params): mixed
+    public function countTokens(array $params): BetaMessageTokensCount
     {
         return $this->client->beta->messages->countTokens($params);
+    }
+
+    public function estimateCost(
+        int $inputTokens,
+        int $outputTokens = 0,
+        ?string $model = null,
+    ): TokenCost {
+        $model = $model ?? $this->config['default_model'] ?? 'claude-sonnet-4-5-20250929';
+        $pricing = $this->getPricingForModel($model);
+
+        return TokenCost::calculate($inputTokens, $outputTokens, $pricing, $model);
+    }
+
+    /** @return array{input: float, output: float} */
+    public function getPricingForModel(string $model): array
+    {
+        $pricingConfig = $this->config['pricing'] ?? [];
+
+        foreach ($pricingConfig as $pattern => $pricing) {
+            if (str_contains(strtolower($model), $pattern)) {
+                return $pricing;
+            }
+        }
+
+        return $pricingConfig['claude-sonnet'] ?? ['input' => 3.00, 'output' => 15.00];
     }
 
     public function conversation(): ConversationBuilder
@@ -175,8 +225,15 @@ class ClaudeManager implements ClaudeClientInterface
             'default_model' => 'claude-sonnet-4-5-20250929',
         ]);
 
-        if (function_exists('app')) {
+        if (function_exists('app') && app()->bound('app')) {
             app()->instance(ClaudeManager::class, static::$fake);
+
+            if (! static::$fakeAutoResetRegistered) {
+                app()->terminating(function () {
+                    static::clearFake();
+                });
+                static::$fakeAutoResetRegistered = true;
+            }
         }
 
         return static::$fake;
@@ -185,6 +242,11 @@ class ClaudeManager implements ClaudeClientInterface
     public static function clearFake(): void
     {
         static::$fake = null;
+        static::$fakeAutoResetRegistered = false;
+
+        if (function_exists('app') && app()->bound(ClaudeManager::class)) {
+            app()->forgetInstance(ClaudeManager::class);
+        }
     }
 
     public static function isFaking(): bool

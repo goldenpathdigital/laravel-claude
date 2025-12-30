@@ -70,4 +70,30 @@ return [
         //     'token' => env('ZAPIER_MCP_TOKEN'),
         // ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Model Pricing
+    |--------------------------------------------------------------------------
+    |
+    | Pricing per million tokens for cost estimation. Prices in USD.
+    | Update these values when Anthropic changes pricing.
+    |
+    | Format: 'model-pattern' => ['input' => price, 'output' => price]
+    |
+    */
+    'pricing' => [
+        'claude-opus' => [
+            'input' => 15.00,
+            'output' => 75.00,
+        ],
+        'claude-sonnet' => [
+            'input' => 3.00,
+            'output' => 15.00,
+        ],
+        'claude-haiku' => [
+            'input' => 0.25,
+            'output' => 1.25,
+        ],
+    ],
 ];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GoldenPathDigital\Claude\Testing;
 
+use Anthropic\Beta\Messages\BetaMessageTokensCount;
 use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Conversation\ConversationBuilder;
 use PHPUnit\Framework\Assert;
@@ -20,7 +21,7 @@ class PendingClaudeFake implements ClaudeClientInterface
 
     protected array $filesResponses = [];
 
-    protected ?object $tokenCountResponse = null;
+    protected ?BetaMessageTokensCount $tokenCountResponse = null;
 
     public function __construct(array $responses = [], array $config = [])
     {
@@ -50,13 +51,16 @@ class PendingClaudeFake implements ClaudeClientInterface
         return new FakeFilesService($this->filesResponses);
     }
 
-    public function countTokens(array $params): object
+    public function countTokens(array $params): BetaMessageTokensCount
     {
         if ($this->tokenCountResponse !== null) {
             return $this->tokenCountResponse;
         }
 
-        return (object) ['input_tokens' => 10];
+        return BetaMessageTokensCount::with(
+            context_management: null,
+            input_tokens: 10
+        );
     }
 
     public function fakeModels(array $responses): self
@@ -82,7 +86,10 @@ class PendingClaudeFake implements ClaudeClientInterface
 
     public function fakeTokenCount(int $tokens): self
     {
-        $this->tokenCountResponse = (object) ['input_tokens' => $tokens];
+        $this->tokenCountResponse = BetaMessageTokensCount::with(
+            context_management: null,
+            input_tokens: $tokens
+        );
 
         return $this;
     }
