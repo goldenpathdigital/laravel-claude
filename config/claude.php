@@ -13,6 +13,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Auth Token (Alternative Authentication)
+    |--------------------------------------------------------------------------
+    |
+    | OAuth/bearer token for alternative authentication methods.
+    | Use this instead of api_key when using OAuth-based authentication.
+    |
+    */
+    'auth_token' => env('ANTHROPIC_AUTH_TOKEN'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Base URL
     |--------------------------------------------------------------------------
     |

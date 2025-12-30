@@ -105,3 +105,52 @@ test('all parameters can be chained together', function () {
     expect($array['service_tier'])->toBe('auto');
     expect($array['max_tokens'])->toBe(2048);
 });
+
+test('temperature rejects values below 0', function () {
+    $this->builder->temperature(-0.1);
+})->throws(InvalidArgumentException::class, 'Temperature must be between 0.0 and 1.0');
+
+test('temperature rejects values above 1', function () {
+    $this->builder->temperature(1.1);
+})->throws(InvalidArgumentException::class, 'Temperature must be between 0.0 and 1.0');
+
+test('temperature accepts boundary values', function () {
+    $this->builder->temperature(0.0);
+    expect($this->builder->toArray()['temperature'])->toBe(0.0);
+
+    $builder2 = new ConversationBuilder($this->manager);
+    $builder2->temperature(1.0);
+    expect($builder2->toArray()['temperature'])->toBe(1.0);
+});
+
+test('topP rejects values below 0', function () {
+    $this->builder->topP(-0.1);
+})->throws(InvalidArgumentException::class, 'topP must be between 0.0 and 1.0');
+
+test('topP rejects values above 1', function () {
+    $this->builder->topP(1.1);
+})->throws(InvalidArgumentException::class, 'topP must be between 0.0 and 1.0');
+
+test('topK rejects zero', function () {
+    $this->builder->topK(0);
+})->throws(InvalidArgumentException::class, 'topK must be at least 1');
+
+test('topK rejects negative values', function () {
+    $this->builder->topK(-5);
+})->throws(InvalidArgumentException::class, 'topK must be at least 1');
+
+test('maxTokens rejects zero', function () {
+    $this->builder->maxTokens(0);
+})->throws(InvalidArgumentException::class, 'maxTokens must be at least 1');
+
+test('maxTokens rejects negative values', function () {
+    $this->builder->maxTokens(-100);
+})->throws(InvalidArgumentException::class, 'maxTokens must be at least 1');
+
+test('maxSteps rejects zero', function () {
+    $this->builder->maxSteps(0);
+})->throws(InvalidArgumentException::class, 'maxSteps must be at least 1');
+
+test('maxSteps rejects negative values', function () {
+    $this->builder->maxSteps(-1);
+})->throws(InvalidArgumentException::class, 'maxSteps must be at least 1');

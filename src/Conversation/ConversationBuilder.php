@@ -200,15 +200,35 @@ class ConversationBuilder
         return $this;
     }
 
+    /**
+     * Set maximum tokens for the response.
+     *
+     * @throws \InvalidArgumentException If tokens is not positive
+     */
     public function maxTokens(int $tokens): self
     {
+        if ($tokens < 1) {
+            throw new \InvalidArgumentException('maxTokens must be at least 1');
+        }
+
         $this->maxTokens = $tokens;
 
         return $this;
     }
 
+    /**
+     * Set the sampling temperature (0.0 to 1.0).
+     *
+     * @throws \InvalidArgumentException If temperature is out of range
+     */
     public function temperature(float $temperature): self
     {
+        if ($temperature < 0.0 || $temperature > 1.0) {
+            throw new \InvalidArgumentException(
+                'Temperature must be between 0.0 and 1.0'
+            );
+        }
+
         $this->temperature = $temperature;
 
         return $this;
@@ -221,15 +241,35 @@ class ConversationBuilder
         return $this;
     }
 
+    /**
+     * Set top-K sampling parameter.
+     *
+     * @throws \InvalidArgumentException If topK is not positive
+     */
     public function topK(int $k): self
     {
+        if ($k < 1) {
+            throw new \InvalidArgumentException('topK must be at least 1');
+        }
+
         $this->topK = $k;
 
         return $this;
     }
 
+    /**
+     * Set nucleus sampling threshold (0.0 to 1.0).
+     *
+     * @throws \InvalidArgumentException If topP is out of range
+     */
     public function topP(float $p): self
     {
+        if ($p < 0.0 || $p > 1.0) {
+            throw new \InvalidArgumentException(
+                'topP must be between 0.0 and 1.0'
+            );
+        }
+
         $this->topP = $p;
 
         return $this;
@@ -276,8 +316,17 @@ class ConversationBuilder
         return $this;
     }
 
+    /**
+     * Set maximum tool execution iterations.
+     *
+     * @throws \InvalidArgumentException If steps is not positive
+     */
     public function maxSteps(int $steps): self
     {
+        if ($steps < 1) {
+            throw new \InvalidArgumentException('maxSteps must be at least 1');
+        }
+
         $this->maxSteps = $steps;
 
         return $this;
@@ -361,14 +410,25 @@ class ConversationBuilder
         return $payload;
     }
 
+    /**
+     * Send the conversation and return the response.
+     *
+     * Executes a tool loop up to maxSteps if tools are defined and Claude
+     * requests tool execution. Returns the final Message response.
+     *
+     * @throws \RuntimeException If maxSteps is less than 1
+     */
     public function send(): Message
     {
-        $payload = $this->buildPayload();
-        $step = 0;
+        if ($this->maxSteps < 1) {
+            throw new \RuntimeException('maxSteps must be at least 1');
+        }
 
-        while ($step < $this->maxSteps) {
+        $payload = $this->buildPayload();
+        $response = null;
+
+        for ($step = 0; $step < $this->maxSteps; $step++) {
             $response = $this->client->messages()->create($payload);
-            $step++;
 
             if ($response->stop_reason !== 'tool_use') {
                 $this->appendAssistantResponse($response);
