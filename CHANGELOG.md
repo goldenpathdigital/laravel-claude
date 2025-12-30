@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-12-29
+
+### Added
+
+- **Architecture Improvements**
+  - `PayloadBuilder` class - Single source of truth for API payload construction
+  - `ToolExecutor` class - Tool execution with validation, timeouts, and logging
+  - `StreamHandler` class - Streaming orchestration with injectable event dispatcher
+
+- **Tool Enhancements**
+  - `Tool::validator()` for custom input validation callbacks
+  - `Tool::timeout()` for per-tool execution time limits
+  - Required parameter validation during tool execution
+
+- **New Exceptions**
+  - `ToolExecutionException` with tool name and input context
+  - `ValidationException` with field and value context  
+  - `ApiException` with API error type
+  - `RateLimitException` with retry-after seconds
+
+- **Testing**
+  - `FakeScope` for scoped test isolation (prevents test pollution)
+  - `Claude::fakeScoped()` method for automatic cleanup
+  - 38 new unit tests (175 → 213 total)
+
+- **Dependency Injection**
+  - `withLogger()` for custom PSR-3 logger injection
+  - `withEventDispatcher()` for custom event dispatcher injection
+  - `isValidModel(strict: bool)` for configurable model validation
+
+### Fixed
+
+- **Security**: MCP tokens now redacted from `var_dump()` and logs via `__debugInfo()`
+
+### Changed
+
+- `ConversationBuilder` reduced from 682 to 483 lines (-29%) through extraction
+- `ProcessConversation` job now uses `PayloadBuilder` (eliminates payload duplication)
+
 ## [1.0.2] - 2025-12-29
 
 ### Added
