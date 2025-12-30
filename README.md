@@ -166,6 +166,31 @@ $count = Claude::countTokens([
 echo "Input tokens: " . $count->input_tokens;
 ```
 
+### Cost Estimation
+
+Estimate API costs based on token usage:
+
+```php
+use GoldenPathDigital\Claude\Facades\Claude;
+
+// Estimate cost for a request
+$cost = Claude::estimateCost(
+    inputTokens: 1000,
+    outputTokens: 500,
+    model: 'claude-sonnet-4-5-20250929'
+);
+
+echo $cost->formatted();        // "$0.010500"
+echo $cost->total();            // 0.0105
+echo $cost->inputCost;          // 0.003
+echo $cost->outputCost;         // 0.0075
+echo $cost->totalTokens();      // 1500
+
+// Get pricing for a model
+$pricing = Claude::getPricingForModel('claude-opus-4-20250514');
+// ['input' => 15.00, 'output' => 75.00] (per million tokens)
+```
+
 ### Fluent Conversation Builder
 
 ```php
@@ -499,11 +524,19 @@ Claude::fake([
 // config/claude.php
 
 return [
+    // Authentication
     'api_key' => env('ANTHROPIC_API_KEY'),
+    'auth_token' => env('ANTHROPIC_AUTH_TOKEN'),  // Alternative OAuth authentication
+    
+    // Custom endpoint (for proxies or enterprise)
+    'base_url' => env('ANTHROPIC_BASE_URL'),
+    
+    // Defaults
     'default_model' => env('CLAUDE_MODEL', 'claude-sonnet-4-5-20250929'),
     'timeout' => env('CLAUDE_TIMEOUT', 30),
     'max_retries' => 2,
     
+    // Beta features (auto-enabled headers)
     'beta_features' => [
         'mcp_connector' => true,
         'extended_thinking' => true,
@@ -511,11 +544,19 @@ return [
         'structured_outputs' => true,
     ],
     
+    // Pre-configured MCP servers
     'mcp_servers' => [
         'zapier' => [
             'url' => env('ZAPIER_MCP_URL'),
             'token' => env('ZAPIER_MCP_TOKEN'),
         ],
+    ],
+    
+    // Pricing per million tokens (for cost estimation)
+    'pricing' => [
+        'claude-opus' => ['input' => 15.00, 'output' => 75.00],
+        'claude-sonnet' => ['input' => 3.00, 'output' => 15.00],
+        'claude-haiku' => ['input' => 0.25, 'output' => 1.25],
     ],
 ];
 ```

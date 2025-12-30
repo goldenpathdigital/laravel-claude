@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-12-29
+
+### Added
+
+- **Cost Estimation**
+  - `Claude::estimateCost()` for calculating API costs based on token usage
+  - `Claude::getPricingForModel()` for retrieving model-specific pricing
+  - `TokenCost` value object with formatted output and detailed breakdowns
+  - Configurable pricing in `config/claude.php`
+
+- **Configuration Options**
+  - `base_url` for custom API endpoints (proxies, enterprise deployments)
+  - `auth_token` for OAuth/bearer token authentication
+
+- **Parameter Validation**
+  - `temperature()` validates range 0.0-1.0
+  - `topP()` validates range 0.0-1.0
+  - `topK()` validates minimum of 1
+  - `maxTokens()` validates minimum of 1
+  - `maxSteps()` validates minimum of 1
+  - `extendedThinking()` validates budget minimum of 1024 tokens
+
+### Fixed
+
+- MCP connector now uses correct `mcp-client-2025-11-20` API format with `mcp_toolset` entries
+- Potential uninitialized variable in `ConversationBuilder::send()` tool loop
+- `CachedContent::cache()` now returns immutable cloned instance
+- `FakeResponse::withToolUse()` now correctly creates `ToolUseBlock` content
+- `clearFake()` properly resets auto-reset flag across test suites
+
+## [1.0.1] - 2025-12-29
+
+### Fixed
+
+- CI workflow and Laravel 10 compatibility
+
 ## [1.0.0] - 2025-12-29
 
 ### Added
