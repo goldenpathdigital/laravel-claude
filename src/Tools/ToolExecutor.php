@@ -73,10 +73,27 @@ class ToolExecutor
             $input = is_array($block->input) ? $block->input : [];
             $result = $this->executeWithTimeout($tool, $input);
 
+            $content = $result;
+            if (! is_string($result)) {
+                $content = json_encode($result, JSON_THROW_ON_ERROR);
+            }
+
             return [
                 'type' => 'tool_result',
                 'tool_use_id' => $block->id,
-                'content' => is_string($result) ? $result : json_encode($result),
+                'content' => $content,
+            ];
+        } catch (\JsonException $e) {
+            $this->logger->error("Tool result JSON encoding failed: {$block->name}", [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            return [
+                'type' => 'tool_result',
+                'tool_use_id' => $block->id,
+                'content' => 'Error: Tool result could not be encoded as JSON',
+                'is_error' => true,
             ];
         } catch (Throwable $e) {
             $this->logger->error("Tool execution failed: {$block->name}", [
@@ -108,23 +125,17 @@ class ToolExecutor
     /** @param array<string, mixed> $input */
     protected function runWithPcntlTimeout(Tool $tool, array $input, float $timeout): mixed
     {
-        if (! extension_loaded('pcntl')) {
+        if (! extension_loaded('pcntl') || PHP_SAPI !== 'cli') {
             return $tool->execute($input);
         }
 
         $timeoutSeconds = (int) ceil($timeout);
-        $previousHandler = null;
         $timedOut = false;
 
         $previousHandler = pcntl_signal_get_handler(SIGALRM);
 
-        pcntl_signal(SIGALRM, function () use (&$timedOut, $tool): void {
+        pcntl_signal(SIGALRM, function () use (&$timedOut): void {
             $timedOut = true;
-            throw new ToolExecutionException(
-                $tool->getName(),
-                [],
-                "Tool '{$tool->getName()}' execution timed out"
-            );
         });
 
         pcntl_alarm($timeoutSeconds);
@@ -133,12 +144,20 @@ class ToolExecutor
             $result = $tool->execute($input);
             pcntl_alarm(0);
 
+            pcntl_signal_dispatch();
+
+            if ($timedOut) {
+                throw new ToolExecutionException(
+                    $tool->getName(),
+                    $input,
+                    "Tool '{$tool->getName()}' execution timed out"
+                );
+            }
+
             return $result;
         } finally {
             pcntl_alarm(0);
-            if ($previousHandler !== null) {
-                pcntl_signal(SIGALRM, $previousHandler);
-            }
+            pcntl_signal(SIGALRM, $previousHandler ?: SIG_DFL);
         }
     }
 

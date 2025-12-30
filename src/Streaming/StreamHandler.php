@@ -59,7 +59,15 @@ class StreamHandler
                             type: $delta->type ?? 'text_delta',
                         );
 
-                        $callback($chunk);
+                        try {
+                            $callback($chunk);
+                        } catch (Throwable $e) {
+                            throw new StreamingException(
+                                "Stream callback failed at chunk {$chunkIndex}: {$e->getMessage()}",
+                                previous: $e
+                            );
+                        }
+
                         $this->dispatchEvent($chunk);
                     }
                 }

@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace GoldenPathDigital\Claude\Conversation;
 
+use Anthropic\Core\Exceptions\APIConnectionException;
+use Anthropic\Core\Exceptions\APIException as SdkAPIException;
+use Anthropic\Core\Exceptions\AuthenticationException;
+use Anthropic\Core\Exceptions\RateLimitException as SdkRateLimitException;
 use Anthropic\Messages\Message;
 use Anthropic\Messages\TextBlock;
 use Closure;
 use GoldenPathDigital\Claude\Contracts\ClaudeClientInterface;
 use GoldenPathDigital\Claude\Events\StreamComplete;
+use GoldenPathDigital\Claude\Exceptions\ApiException;
+use GoldenPathDigital\Claude\Exceptions\ConfigurationException;
+use GoldenPathDigital\Claude\Exceptions\RateLimitException;
 use GoldenPathDigital\Claude\Exceptions\ValidationException;
 use GoldenPathDigital\Claude\MCP\McpServer;
 use GoldenPathDigital\Claude\Streaming\StreamHandler;
@@ -17,6 +24,7 @@ use GoldenPathDigital\Claude\Tools\ToolExecutor;
 use GoldenPathDigital\Claude\ValueObjects\CachedContent;
 use Illuminate\Contracts\Events\Dispatcher;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class ConversationBuilder
 {
@@ -165,6 +173,8 @@ class ConversationBuilder
 
     public function imageUrl(string $url, ?string $text = null): self
     {
+        McpServer::validateUrl($url);
+
         $content = [
             [
                 'type' => 'image',
@@ -364,7 +374,7 @@ class ConversationBuilder
         $response = null;
 
         for ($step = 0; $step < $this->maxSteps; $step++) {
-            $response = $this->client->messages()->create($payload);
+            $response = $this->executeApiCall($payload);
 
             if ($response->stop_reason !== 'tool_use') {
                 $this->appendAssistantResponse($response);
@@ -396,6 +406,50 @@ class ConversationBuilder
         }
 
         return $response;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @throws ApiException
+     * @throws RateLimitException
+     * @throws ConfigurationException
+     */
+    protected function executeApiCall(array $payload): Message
+    {
+        try {
+            return $this->client->messages()->create($payload);
+        } catch (SdkRateLimitException $e) {
+            $retryAfter = $e->response?->getHeader('retry-after')[0] ?? null;
+            throw new RateLimitException(
+                'Rate limit exceeded. Please retry later.',
+                $retryAfter !== null ? (int) $retryAfter : null,
+                $e
+            );
+        } catch (AuthenticationException $e) {
+            throw new ConfigurationException(
+                'Invalid API credentials. Check your ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN.',
+                0,
+                $e
+            );
+        } catch (APIConnectionException $e) {
+            throw new ApiException(
+                'Failed to connect to Claude API: '.$e->getMessage(),
+                'connection_error',
+                $e
+            );
+        } catch (SdkAPIException $e) {
+            throw new ApiException(
+                $e->getMessage(),
+                $e->body['error']['type'] ?? null,
+                $e
+            );
+        } catch (Throwable $e) {
+            throw new ApiException(
+                'Unexpected API error: '.$e->getMessage(),
+                null,
+                $e
+            );
+        }
     }
 
     protected function createToolExecutor(): ToolExecutor
